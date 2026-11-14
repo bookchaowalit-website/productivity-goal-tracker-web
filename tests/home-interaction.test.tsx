@@ -137,6 +137,12 @@ describe("archive, delete and undo", () => {
     expect(goalTitles()).toEqual([SAMPLE]);
   });
 
+  it("archiving while the composer is open moves focus to the composer", () => {
+    press(button("New goal"));
+    press(button("Archive", card(SAMPLE)));
+    expect(document.activeElement).toBe($(".as-composer input"));
+  });
+
   it("keyboard delete focuses Undo; Undo restores the goal and focuses New goal; mouse delete empties the list", () => {
     press($(`[aria-label="Delete ${SAMPLE}"]`)!, 0);
     expect(goalTitles()).toEqual([]);

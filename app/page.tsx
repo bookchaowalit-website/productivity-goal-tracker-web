@@ -77,8 +77,9 @@ export default function Home() {
   function archive(goal: Goal) {
     setGoals((items) => toggleArchived(items, goal.id));
     setAnnouncement(goal.archived ? `Moved “${goal.title}” back to Active.` : `Archived “${goal.title}”. It is under Archived.`);
-    // The card leaves this list, so its button goes with it: keep focus on the page.
-    newRef.current?.focus();
+    // The card leaves this list, so its button goes with it: move focus to New goal, or to the
+    // composer when it is open (New goal is hidden then).
+    (newRef.current ?? titleRef.current)?.focus();
   }
   function removeGoal(goal: Goal, viaKeyboard: boolean) {
     const index = goals.findIndex((entry) => entry.id === goal.id);
