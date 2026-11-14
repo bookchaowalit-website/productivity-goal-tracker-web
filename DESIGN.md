@@ -1,3 +1,13 @@
+# Goals — design
+
+Since 2026-11-14 this app uses the shared App shell (`APP-SHELL.md`): Active / Archived lists in
+the sidebar (pills on phones), a composer for a goal and its first step, and one card per goal
+with a status pill (Not started grey, In progress amber, Done green), a progress bar, round
+step checks with editable names, an "Add a step" row, Archive/Restore and Delete with undo.
+The earlier "mission control" theme below is kept for history.
+
+---
+
 # Design direction
 
 ## Product world

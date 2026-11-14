@@ -79,10 +79,10 @@ export function visibleGoals(goals: Goal[], showArchived: boolean): Goal[] {
   return showArchived ? goals : activeGoals(goals);
 }
 
-export function addGoal(goals: Goal[], title: string, makeId: () => string): { ok: boolean; goals: Goal[] } {
+export function addGoal(goals: Goal[], title: string, makeId: () => string, firstStep = ""): { ok: boolean; goals: Goal[] } {
   const name = title.trim();
   if (!name) return { ok: false, goals };
-  const goal: Goal = { id: makeId(), title: name, archived: false, milestones: [{ id: makeId(), text: "First waypoint", done: false }] };
+  const goal: Goal = { id: makeId(), title: name, archived: false, milestones: [{ id: makeId(), text: firstStep.trim() || "First step", done: false }] };
   return { ok: true, goals: [goal, ...goals] };
 }
 
@@ -106,4 +106,46 @@ export function toggleMilestone(goals: Goal[], goalId: string, milestoneId: stri
 
 export function renameMilestone(goals: Goal[], goalId: string, milestoneId: string, text: string): Goal[] {
   return updateMilestone(goals, goalId, milestoneId, (m) => ({ ...m, text }));
+}
+
+/** Add a step to the end of a goal. Blank text is refused (returns the same array). */
+export function addMilestone(goals: Goal[], goalId: string, text: string, id: string): Goal[] {
+  const name = text.trim();
+  if (!name) return goals;
+  return goals.map((g) => (g.id === goalId ? { ...g, milestones: [...g.milestones, { id, text: name, done: false }] } : g));
+}
+
+export function removeMilestone(goals: Goal[], goalId: string, milestoneId: string): Goal[] {
+  return goals.map((g) => (g.id === goalId ? { ...g, milestones: g.milestones.filter((m) => m.id !== milestoneId) } : g));
+}
+
+/** Put a removed item back before its old neighbour (or at the end when the neighbour is gone). */
+function insertBefore<T extends { id: string }>(items: T[], item: T, beforeId: string | null): T[] {
+  if (items.some((entry) => entry.id === item.id)) return items;
+  const at = beforeId ? items.findIndex((entry) => entry.id === beforeId) : -1;
+  return at < 0 ? [...items, item] : [...items.slice(0, at), item, ...items.slice(at)];
+}
+
+export function restoreGoal(goals: Goal[], goal: Goal, beforeId: string | null): Goal[] {
+  return insertBefore(goals, goal, beforeId);
+}
+
+export function restoreMilestone(goals: Goal[], goalId: string, milestone: Milestone, beforeId: string | null): Goal[] {
+  return goals.map((g) => (g.id === goalId ? { ...g, milestones: insertBefore(g.milestones, milestone, beforeId) } : g));
+}
+
+export type GoalStatus = "Not started" | "In progress" | "Done";
+
+/** Done needs at least one step, all of them checked. */
+export function goalStatus(goal: Goal): GoalStatus {
+  const done = goal.milestones.filter((m) => m.done).length;
+  if (goal.milestones.length > 0 && done === goal.milestones.length) return "Done";
+  return done === 0 ? "Not started" : "In progress";
+}
+
+export function stepSummary(goal: Goal): string {
+  const total = goal.milestones.length;
+  if (total === 0) return "No steps yet";
+  const done = goal.milestones.filter((m) => m.done).length;
+  return `${done} of ${total} ${total === 1 ? "step" : "steps"} done`;
 }
