@@ -99,6 +99,8 @@ export default function Home() {
     setGoals((items) => addMilestone(items, goal.id, text, createId()));
     setStepDrafts((drafts) => ({ ...drafts, [goal.id]: "" }));
     setAnnouncement(`Added step “${text.trim()}” to “${goal.title}”.`);
+    // Add disappears once the field is empty, so keep focus in the field for the next step.
+    event.currentTarget.querySelector("input")?.focus();
   }
   function closeToast() {
     setRemoved(null);

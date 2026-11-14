@@ -96,9 +96,11 @@ describe("steps", () => {
     const input = $<HTMLInputElement>(".as-add-step input", card(SAMPLE))!;
     expect(button("Add", $(".as-add-step", card(SAMPLE))!)).toBeUndefined();
     type(input, "Write the README");
-    submit($<HTMLFormElement>(".as-add-step", card(SAMPLE))!);
+    act(() => { button("Add", $(".as-add-step", card(SAMPLE))!).focus(); });
+    press(button("Add", $(".as-add-step", card(SAMPLE))!));
     expect(steps(SAMPLE)).toEqual(["Base64 + hash tools", "Mini-apps batch", "Deploy demos", "Write the README"]);
     expect(input.value).toBe("");
+    expect(document.activeElement).toBe(input);
     submit($<HTMLFormElement>(".as-add-step", card(SAMPLE))!);
     expect(steps(SAMPLE)).toHaveLength(4);
     const second = $<HTMLInputElement>(`[aria-label="Step 2 of ${SAMPLE}"]`)!;
