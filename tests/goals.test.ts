@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   INITIAL_GOALS,
+  addMilestone,
+  goalStatus,
+  removeMilestone,
+  restoreGoal,
+  restoreMilestone,
+  stepSummary,
   addGoal,
   averageProgress,
   deleteGoal,
@@ -75,7 +81,7 @@ describe("goal actions", () => {
       id: "id-0",
       title: "Run a marathon",
       archived: false,
-      milestones: [{ id: "id-1", text: "First waypoint", done: false }],
+      milestones: [{ id: "id-1", text: "First step", done: false }],
     });
     expect(result.goals).toHaveLength(3);
   });
@@ -104,5 +110,48 @@ describe("goal actions", () => {
   it("hides archived goals unless asked", () => {
     expect(visibleGoals(goals, false).map((g) => g.id)).toEqual(["a"]);
     expect(visibleGoals(goals, true).map((g) => g.id)).toEqual(["a", "b"]);
+  });
+});
+
+
+describe("steps and undo helpers", () => {
+  const goal: Goal = { id: "g", title: "Goal", archived: false, milestones: [{ id: "a", text: "A", done: true }, { id: "b", text: "B", done: false }] };
+  const other: Goal = { id: "h", title: "Other", archived: false, milestones: [] };
+
+  it("addMilestone appends a trimmed step and refuses blank text", () => {
+    const list = [goal, other];
+    expect(addMilestone(list, "g", "  C ", "c")[0].milestones.map((m) => m.text)).toEqual(["A", "B", "C"]);
+    expect(addMilestone(list, "g", "   ", "c")).toBe(list);
+    expect(addMilestone(list, "g", "C", "c")[1]).toBe(other);
+  });
+
+  it("removeMilestone and restoreMilestone put a step back before its old neighbour", () => {
+    const without = removeMilestone([goal, other], "g", "a");
+    expect(without[0].milestones.map((m) => m.id)).toEqual(["b"]);
+    expect(restoreMilestone(without, "g", goal.milestones[0], "b")[0].milestones.map((m) => m.id)).toEqual(["a", "b"]);
+    expect(restoreMilestone(without, "g", goal.milestones[0], "gone")[0].milestones.map((m) => m.id)).toEqual(["b", "a"]);
+    expect(restoreMilestone([goal], "g", goal.milestones[0], null)[0].milestones).toHaveLength(2);
+  });
+
+  it("restoreGoal puts a goal back in place, at the end without a neighbour, and never twice", () => {
+    expect(restoreGoal([other], goal, "h").map((g) => g.id)).toEqual(["g", "h"]);
+    expect(restoreGoal([other], goal, null).map((g) => g.id)).toEqual(["h", "g"]);
+    expect(restoreGoal([goal, other], goal, "h")).toHaveLength(2);
+  });
+
+  it("goalStatus and stepSummary", () => {
+    expect(goalStatus(goal)).toBe("In progress");
+    expect(goalStatus(other)).toBe("Not started");
+    expect(goalStatus({ ...goal, milestones: [{ id: "a", text: "A", done: true }] })).toBe("Done");
+    expect(goalStatus({ ...goal, milestones: [{ id: "a", text: "A", done: false }] })).toBe("Not started");
+    expect(stepSummary(goal)).toBe("1 of 2 steps done");
+    expect(stepSummary({ ...goal, milestones: [goal.milestones[0]] })).toBe("1 of 1 step done");
+    expect(stepSummary(other)).toBe("No steps yet");
+  });
+
+  it("addGoal uses the first step when given", () => {
+    let n = 0;
+    const result = addGoal([], "Run", () => `id-${++n}`, " Shoes ");
+    expect(result.goals[0].milestones[0].text).toBe("Shoes");
   });
 });

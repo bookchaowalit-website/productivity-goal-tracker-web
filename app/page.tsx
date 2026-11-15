@@ -1,34 +1,265 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import Link from "next/link";
-import { STORAGE_KEY, activeGoals, addGoal as addGoalTo, averageProgress, deleteGoal, parseGoals, progress, renameMilestone, serializeGoals, toggleArchived, toggleMilestone, visibleGoals } from "@/lib/goals";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import { AppFoot, AppTop, ListButton, Pill, PlusIcon, type Tone } from "@/components/app-shell";
+import {
+  STORAGE_KEY, activeGoals, addGoal as addGoalTo, addMilestone, averageProgress, deleteGoal, goalStatus, parseGoals, progress,
+  removeMilestone, renameMilestone, restoreGoal, restoreMilestone, serializeGoals, stepSummary, toggleArchived, toggleMilestone,
+  type Goal, type GoalStatus, type Milestone,
+} from "@/lib/goals";
 import { createLocalStore, useLocalStore } from "@/lib/local-store";
 
 const store = createLocalStore(STORAGE_KEY, parseGoals, serializeGoals);
+const TONE: Record<GoalStatus, Tone> = { "Not started": "grey", "In progress": "amber", Done: "green" };
+type View = "Active" | "Archived";
+type Removed =
+  | { kind: "goal"; goal: Goal; beforeId: string | null; viaKeyboard: boolean }
+  | { kind: "step"; goalId: string; step: Milestone; beforeId: string | null; viaKeyboard: boolean };
+
+// randomUUID only exists in secure contexts (HTTPS/localhost) and newer browsers.
+function createId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  return `goal-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+const XIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
+);
 
 export default function Home() {
   const goals = useLocalStore(store);
   const setGoals = store.set;
+  const [view, setView] = useState<View>("Active");
+  const [composing, setComposing] = useState(false);
   const [title, setTitle] = useState("");
-  const [showArchived, setShowArchived] = useState(false);
-  const [notice, setNotice] = useState("Toggle a waypoint to update the route.");
-  const visible = useMemo(() => visibleGoals(goals, showArchived), [goals, showArchived]);
+  const [firstStep, setFirstStep] = useState("");
+  const [stepDrafts, setStepDrafts] = useState<Record<string, string>>({});
+  const [removed, setRemoved] = useState<Removed | null>(null);
+  const [toastFocused, setToastFocused] = useState(false);
+  const [announcement, setAnnouncement] = useState("");
+  const titleRef = useRef<HTMLInputElement>(null);
+  const newRef = useRef<HTMLButtonElement>(null);
+  const undoRef = useRef<HTMLButtonElement>(null);
+  const wasComposing = useRef(false);
+
   const active = activeGoals(goals);
-  const totalProgress = averageProgress(goals);
+  const archived = goals.filter((goal) => goal.archived);
+  const visible = view === "Active" ? active : archived;
+  const average = averageProgress(goals);
 
-  const addGoal = () => {
-    const result = addGoalTo(goals, title, () => crypto.randomUUID());
-    if (!result.ok) { setNotice("Name the mission before opening its route."); return; }
+  useEffect(() => {
+    if (composing) titleRef.current?.focus();
+    else if (wasComposing.current) newRef.current?.focus();
+    wasComposing.current = composing;
+  }, [composing]);
+  useEffect(() => { if (removed?.viaKeyboard) undoRef.current?.focus(); }, [removed]);
+  // The toast closes after 6 s, but never while it holds focus.
+  useEffect(() => {
+    if (!removed || toastFocused) return;
+    const timer = window.setTimeout(() => setRemoved(null), 6000);
+    return () => window.clearTimeout(timer);
+  }, [removed, toastFocused]);
+
+  function closeComposer() {
+    setComposing(false);
+    setTitle("");
+    setFirstStep("");
+  }
+  function add(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const result = addGoalTo(goals, title, createId, firstStep);
+    if (!result.ok) return;
     setGoals(result.goals);
-    setTitle(""); setNotice("Mission opened with its first waypoint.");
-  };
+    setView("Active");
+    setAnnouncement(`Added “${title.trim()}”.`);
+    closeComposer();
+  }
+  function archive(goal: Goal) {
+    setGoals((items) => toggleArchived(items, goal.id));
+    setAnnouncement(goal.archived ? `Moved “${goal.title}” back to Active.` : `Archived “${goal.title}”. It is under Archived.`);
+    // The card leaves this list, so its button goes with it: move focus to New goal, or to the
+    // composer when it is open (New goal is hidden then).
+    (newRef.current ?? titleRef.current)?.focus();
+  }
+  function removeGoal(goal: Goal, viaKeyboard: boolean) {
+    const index = goals.findIndex((entry) => entry.id === goal.id);
+    setGoals((items) => deleteGoal(items, goal.id));
+    setRemoved({ kind: "goal", goal, beforeId: goals[index + 1]?.id ?? null, viaKeyboard });
+    setAnnouncement(`Deleted “${goal.title}”. Undo is available for a few seconds.`);
+  }
+  function removeStep(goal: Goal, step: Milestone, viaKeyboard: boolean) {
+    const index = goal.milestones.findIndex((entry) => entry.id === step.id);
+    setGoals((items) => removeMilestone(items, goal.id, step.id));
+    setRemoved({ kind: "step", goalId: goal.id, step, beforeId: goal.milestones[index + 1]?.id ?? null, viaKeyboard });
+    setAnnouncement(`Removed step “${step.text}”. Undo is available for a few seconds.`);
+  }
+  function addStep(event: FormEvent<HTMLFormElement>, goal: Goal) {
+    event.preventDefault();
+    const text = stepDrafts[goal.id] ?? "";
+    if (!text.trim()) return;
+    setGoals((items) => addMilestone(items, goal.id, text, createId()));
+    setStepDrafts((drafts) => ({ ...drafts, [goal.id]: "" }));
+    setAnnouncement(`Added step “${text.trim()}” to “${goal.title}”.`);
+    // Add disappears once the field is empty, so keep focus in the field for the next step.
+    event.currentTarget.querySelector("input")?.focus();
+  }
+  function closeToast() {
+    setRemoved(null);
+    setToastFocused(false);
+    (newRef.current ?? titleRef.current)?.focus();
+  }
+  function undo() {
+    if (!removed) return;
+    if (removed.kind === "goal") {
+      const { goal, beforeId } = removed;
+      setGoals((items) => restoreGoal(items, goal, beforeId));
+      setAnnouncement(`Restored “${goal.title}”.`);
+    } else {
+      const { goalId, step, beforeId } = removed;
+      setGoals((items) => restoreMilestone(items, goalId, step, beforeId));
+      setAnnouncement(`Restored step “${step.text}”.`);
+    }
+    closeToast();
+  }
 
-  return <main className="gt-page">
-    <header className="gt-topbar"><Link className="gt-mark" href="/">MISSION / CONTROL</Link><span>ROUTE BOARD · LOCAL STATE</span><span className="gt-clock">ACTIVE {String(active.length).padStart(2, "0")}</span></header>
-    <section className="gt-hero"><div><p className="gt-stamp">WAYPOINT SYSTEM / PERSONAL NAVIGATION</p><h1>Make progress<br /><span>visible.</span></h1><p className="gt-intro">A goal becomes easier to steer when every milestone has a place on the route. Check one waypoint, edit its name, or archive the mission when the flight is over.</p></div><aside className="gt-readout"><span>FLEET READOUT</span><strong>{totalProgress}%</strong><div className="gt-readout-line"><i style={{ width: `${totalProgress}%` }} /><b>AVERAGE ACTIVE ROUTE</b></div><p role="status">{notice}</p></aside></section>
-    <section className="gt-command" aria-labelledby="command-title"><div className="gt-rule"><span>01 / OPEN A ROUTE</span><span>NO SYNC / THIS BROWSER</span></div><div className="gt-command-row"><h2 id="command-title">New mission.</h2><div className="gt-new-form"><input aria-label="New goal title" placeholder="Name the next destination" value={title} onChange={(event) => setTitle(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") addGoal(); }} /><button type="button" onClick={addGoal}>OPEN ROUTE <span>↗</span></button></div><button className="gt-archive-toggle" type="button" onClick={() => setShowArchived((value) => !value)}>{showArchived ? "Hide archived" : "Show archived"}</button></div></section>
-    <section className="gt-missions" aria-labelledby="missions-title"><div className="gt-missions-head"><div><span>02 / ROUTE BOARD</span><h2 id="missions-title">Active missions.</h2></div><span>{visible.length} displayed</span></div><div className="gt-list">{visible.length === 0 ? <p className="gt-empty">No missions in this view. Open a route above.</p> : visible.map((goal, goalIndex) => { const pct = progress(goal); return <article className={`gt-mission ${goal.archived ? "is-archived" : ""}`} key={goal.id}><header className="gt-mission-head"><div><span className="gt-mission-code">MISSION {String(goalIndex + 1).padStart(2, "0")}</span><h3>{goal.title}</h3></div><div className="gt-mission-actions"><strong>{pct}%</strong><button type="button" onClick={() => setGoals((items) => toggleArchived(items, goal.id))}>{goal.archived ? "Restore" : "Archive"}</button><button type="button" onClick={() => setGoals((items) => deleteGoal(items, goal.id))}>Delete</button></div></header><div className="gt-route" style={{ "--route-progress": `${pct}%` } as React.CSSProperties}><div className="gt-route-line" /><ol>{goal.milestones.map((milestone, index) => <li className={milestone.done ? "is-done" : ""} key={milestone.id}><label><input type="checkbox" checked={milestone.done} onChange={() => { setGoals((items) => toggleMilestone(items, goal.id, milestone.id)); setNotice(`${milestone.done ? "Waypoint reopened" : "Waypoint cleared"}: ${milestone.text}`); }} /><span className="gt-node">{milestone.done ? "✓" : String(index + 1).padStart(2, "0")}</span><input className="gt-waypoint" aria-label={`Waypoint ${index + 1}`} value={milestone.text} onChange={(event) => setGoals((items) => renameMilestone(items, goal.id, milestone.id, event.target.value))} /></label></li>)}</ol></div></article>; })}</div></section>
-    <footer className="gt-footer"><strong>NO TEAM SYNC / LOCAL ROUTES</strong><span>Goal Tracker · Bookchaowalit · localStorage only</span></footer>
-  </main>;
+  const heading = view === "Active" ? "Active goals" : "Archived";
+  const summary = view === "Active"
+    ? `${active.length} ${active.length === 1 ? "goal" : "goals"}${active.length ? ` · ${average}% average progress` : ""}`
+    : `${archived.length} archived`;
+
+  return (
+    <div className="as">
+      <a className="as-skip" href="#main">Skip to content</a>
+      <AppTop name="Goals" tagline="Break a goal into steps and tick them off" />
+
+      <div className="as-body">
+        <aside className="as-side" aria-label="Lists">
+          <h2>Lists</h2>
+          <ul className="as-lists">
+            <ListButton label="Active" count={active.length} current={view === "Active"} onSelect={() => setView("Active")} />
+            <ListButton label="Archived" count={archived.length} current={view === "Archived"} onSelect={() => setView("Archived")} />
+          </ul>
+        </aside>
+
+        <main id="main" className="as-main">
+          <div className="as-head">
+            <div>
+              <h1>{heading}</h1>
+              <p aria-live="polite">{summary}</p>
+            </div>
+            <div className="as-tools">
+              {composing ? null : <button ref={newRef} type="button" className="as-button" onClick={() => setComposing(true)}><PlusIcon />New goal</button>}
+            </div>
+          </div>
+
+          {composing ? (
+            <form className="as-composer" onSubmit={add} aria-label="New goal">
+              <label className="as-field">Goal
+                <input ref={titleRef} value={title} onChange={(event) => setTitle(event.target.value)} placeholder="What do you want to finish?" autoComplete="off" />
+              </label>
+              <label className="as-field">First step
+                <input value={firstStep} onChange={(event) => setFirstStep(event.target.value)} placeholder="The smallest thing you can do next" autoComplete="off" />
+              </label>
+              <div className="as-composer-foot">
+                <span className="as-hint">You can add more steps after.</span>
+                <div className="as-composer-actions">
+                  <button type="button" className="as-plain" onClick={closeComposer}>Cancel</button>
+                  <button type="submit" className="as-button" disabled={!title.trim()}>Add</button>
+                </div>
+              </div>
+            </form>
+          ) : null}
+
+          {visible.length ? (
+            <div className="as-goals">
+              {visible.map((goal) => {
+                const pct = progress(goal);
+                const status = goalStatus(goal);
+                const draft = stepDrafts[goal.id] ?? "";
+                return (
+                  <section className="as-goal" key={goal.id} aria-labelledby={`goal-${goal.id}`}>
+                    <div className="as-goal-head">
+                      <div>
+                        <h2 id={`goal-${goal.id}`}>{goal.title}</h2>
+                        <p>{stepSummary(goal)}</p>
+                      </div>
+                      <Pill tone={TONE[status]}>{status}</Pill>
+                    </div>
+                    <div className="as-progress" role="progressbar" aria-label={`${goal.title} progress`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} data-done={status === "Done" ? "true" : undefined}>
+                      <span style={{ width: `${pct}%` }} />
+                    </div>
+                    {goal.milestones.length ? (
+                      <ul className="as-steps" aria-label={`Steps for ${goal.title}`}>
+                        {goal.milestones.map((step, index) => (
+                          <li className="as-row as-row-check" key={step.id} data-done={step.done ? "true" : undefined}>
+                            <label className="as-check">
+                              <input
+                                type="checkbox"
+                                checked={step.done}
+                                aria-label={`Done: ${step.text}`}
+                                onChange={() => {
+                                  setGoals((items) => toggleMilestone(items, goal.id, step.id));
+                                  setAnnouncement(`${step.done ? "Reopened" : "Done"}: ${step.text}`);
+                                }}
+                              />
+                              <span aria-hidden="true" />
+                            </label>
+                            <input
+                              className="as-step-input"
+                              aria-label={`Step ${index + 1} of ${goal.title}`}
+                              value={step.text}
+                              onChange={(event) => setGoals((items) => renameMilestone(items, goal.id, step.id, event.target.value))}
+                              onBlur={(event) => { if (!event.target.value.trim()) setGoals((items) => renameMilestone(items, goal.id, step.id, "Untitled step")); }}
+                            />
+                            <button type="button" className="as-plain as-icon" aria-label={`Remove step ${step.text}`} onClick={(event) => removeStep(goal, step, event.detail === 0)}><XIcon /></button>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
+                    <form className="as-add-step" onSubmit={(event) => addStep(event, goal)}>
+                      <span className="as-add-icon" aria-hidden="true"><PlusIcon /></span>
+                      <label className="as-sr" htmlFor={`add-${goal.id}`}>Add a step to {goal.title}</label>
+                      <input id={`add-${goal.id}`} value={draft} onChange={(event) => setStepDrafts((drafts) => ({ ...drafts, [goal.id]: event.target.value }))} placeholder="Add a step" autoComplete="off" />
+                      {draft.trim() ? <button type="submit" className="as-plain">Add</button> : null}
+                    </form>
+                    <div className="as-goal-foot">
+                      <button type="button" className="as-plain" aria-label={`${goal.archived ? "Restore" : "Archive"} ${goal.title}`} onClick={() => archive(goal)}>{goal.archived ? "Restore" : "Archive"}</button>
+                      <button type="button" className="as-plain as-danger" aria-label={`Delete ${goal.title}`} onClick={(event) => removeGoal(goal, event.detail === 0)}>Delete</button>
+                    </div>
+                  </section>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="as-list as-empty">
+              {goals.length === 0
+                ? <><strong>No goals yet</strong>Press New goal and name the first step.</>
+                : view === "Active"
+                  ? <><strong>Nothing active</strong>Every goal is archived. Press New goal to start another.</>
+                  : <><strong>Nothing archived</strong>Archive a goal when you are done with it.</>}
+            </div>
+          )}
+
+          <p className="as-note">Saved in this browser only. No account, no sync.</p>
+        </main>
+      </div>
+
+      <p className="as-sr" role="status" aria-live="polite">{announcement}</p>
+      {removed ? (
+        <div
+          className="as-toast"
+          role="group"
+          aria-label="Undo"
+          onFocus={() => setToastFocused(true)}
+          onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setToastFocused(false); }}
+          onKeyDown={(event) => { if (event.key === "Escape") closeToast(); }}
+        >
+          <span>{removed.kind === "goal" ? `Deleted “${removed.goal.title}”` : `Removed “${removed.step.text}”`}</span>
+          <button ref={undoRef} type="button" className="as-plain" onClick={undo}>Undo</button>
+        </div>
+      ) : null}
+
+      <AppFoot source="https://github.com/bookchaowalit-website/productivity-goal-tracker-web" />
+    </div>
+  );
 }

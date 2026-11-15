@@ -3,13 +3,15 @@ import { describe, expect, it } from "vitest";
 import Home from "@/app/page";
 
 describe("home page", () => {
-  it("renders the sample mission, its waypoints and the local-only notice", () => {
+  it("renders the sample goal, its steps, progress and the local-only note on the App shell", () => {
     const html = renderToString(<Home />);
-    expect(html).toContain("Make progress");
+    expect(html).toContain("Active goals");
     expect(html).toContain("Ship portfolio utilities");
     expect(html).toContain("Base64 + hash tools");
-    expect(html).toContain("33%");
-    expect(html).toContain("NO SYNC / THIS BROWSER");
-    expect(html).toContain("localStorage only");
+    expect(html).toContain("1 of 3 steps done");
+    expect(html).toContain("33% average progress");
+    expect(html).toContain("In progress");
+    expect(html).toContain('aria-valuenow="33"');
+    expect(html).toContain("Saved in this browser only");
   });
 });
