@@ -61,6 +61,8 @@
 .as-lists button:hover { background: var(--as-hover); }
 .as-lists button[aria-current="true"] { background: var(--as-selected); font-weight: 600; }
 .as-lists .as-count { color: var(--as-muted); font-size: 14px; font-variant-numeric: tabular-nums; }
+/* --as-muted on the selected or hover tint is only 4.15:1; --as-grey keeps 6.5:1 light, 8.3:1 dark. */
+.as-lists button:hover .as-count, .as-lists button[aria-current="true"] .as-count { color: var(--as-grey); }
 .as-dot { display: inline-block; width: 10px; height: 10px; margin-right: 8px; border-radius: 50%; background: var(--as-muted); vertical-align: 0; }
 .as-dot[data-tone="green"] { background: var(--as-green); }
 .as-dot[data-tone="amber"] { background: #e0a100; }
