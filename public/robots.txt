@@ -2,4 +2,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://bookchaowalit.com/sitemap.xml
+Sitemap: https://goal-tracker.bookchaowalit.com/sitemap.xml
