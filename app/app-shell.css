@@ -6,6 +6,9 @@
  *
  * Text pairs pass 4.5:1 in both themes: --as-muted on --as-bg 4.7:1 (light) / 6.9:1 (dark),
  * --as-accent on --as-surface 5.7:1 / 5.6:1; white on --as-button 4.8:1; pill text on its tint 5.6–6.7:1.
+ * Placeholders use --as-muted (the browser default is ~3.2:1). Input edges use --as-field-line: 3.6:1 on
+ * --as-surface and 3.3:1 on --as-bg (light), 4.1:1 / 4.9:1 (dark), because controls need 3:1; --as-line stays
+ * for dividers and cards, which are decorative.
  */
 :root {
   --as-bg: #f5f5f7;
@@ -13,6 +16,7 @@
   --as-fg: #1d1d1f;
   --as-muted: #6e6e73;
   --as-line: #d2d2d7;
+  --as-field-line: #86868b;
   --as-hover: rgb(0 0 0 / 5%);
   --as-selected: #e8e8ed;
   --as-accent: #0066cc;
@@ -30,7 +34,7 @@
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --as-bg: #000000; --as-surface: #1c1c1e; --as-fg: #f5f5f7; --as-muted: #a1a1a6; --as-line: #38383a;
+    --as-bg: #000000; --as-surface: #1c1c1e; --as-fg: #f5f5f7; --as-muted: #a1a1a6; --as-line: #38383a; --as-field-line: #7c7c80;
     --as-hover: rgb(255 255 255 / 6%); --as-selected: #2c2c2e; --as-accent: #2997ff; --as-focus: #2997ff; --as-danger: #ff6961;
     --as-green: #30d158; --as-green-bg: #0f2e18; --as-amber: #ffd60a; --as-amber-bg: #3a2e00; --as-grey: #c7c7cc; --as-grey-bg: #2c2c2e; --as-red: #ff8a80; --as-red-bg: #3b1513;
     --as-shadow: none;
@@ -44,6 +48,7 @@
 .as-skip { position: absolute; left: 8px; top: -64px; z-index: 50; display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; border-radius: 980px; background: var(--as-surface); border: 2px solid var(--as-focus); }
 .as-skip:focus { top: 8px; }
 .as-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+:where(.as) ::placeholder { color: var(--as-muted); opacity: 1; }
 
 /* Top bar */
 .as-top { position: sticky; top: 0; z-index: 30; display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 52px; padding: 0 clamp(16px, 4vw, 32px); background: color-mix(in srgb, var(--as-bg) 92%, transparent); -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px); border-bottom: 1px solid var(--as-line); }
@@ -77,7 +82,7 @@
 .as-head h1 { margin: 0; font-size: clamp(28px, 4vw, 34px); font-weight: 700; letter-spacing: -.02em; line-height: 1.15; }
 .as-head p { margin: 4px 0 0; color: var(--as-muted); font-size: 15px; }
 .as-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.as-search input { width: min(240px, 100%); min-height: 44px; padding: 0 14px; border: 1px solid var(--as-line); border-radius: 980px; background: var(--as-surface); font-size: 16px; /* 16px stops iOS zooming on focus */ }
+.as-search input { width: min(240px, 100%); min-height: 44px; padding: 0 14px; border: 1px solid var(--as-field-line); border-radius: 980px; background: var(--as-surface); font-size: 16px; /* 16px stops iOS zooming on focus */ }
 .as-search input:focus-visible { outline: 3px solid var(--as-focus); outline-offset: 0; }
 
 /* Buttons */
@@ -92,7 +97,7 @@
 /* Composer */
 .as-composer { display: grid; gap: 12px; margin-bottom: 16px; padding: 16px; border: 1px solid var(--as-line); border-radius: 18px; background: var(--as-surface); box-shadow: var(--as-shadow); }
 .as-field { display: grid; gap: 6px; font-size: 14px; font-weight: 600; }
-.as-field input, .as-field textarea { width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid var(--as-line); border-radius: 10px; background: var(--as-bg); font-size: 16px; font-weight: 400; }
+.as-field input, .as-field textarea { width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid var(--as-field-line); border-radius: 10px; background: var(--as-bg); font-size: 16px; font-weight: 400; }
 .as-field textarea { min-height: 80px; resize: vertical; line-height: 1.5; }
 .as-field input:focus-visible, .as-field textarea:focus-visible { outline: 3px solid var(--as-focus); outline-offset: 0; }
 .as-composer-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }

@@ -15,8 +15,8 @@ shell is copied in, not installed: take `app/app-shell.css` and `components/app-
   a plain action named after the item (`aria-label="Remove …"`).
 - **Removing is undoable** for a few seconds (toast with Undo); no confirm dialogs.
 - **Empty states say what to do next**, and differ for "nothing yet" and "nothing matches".
-- **Floor:** text ≥ 12px, controls ≥ 44px, 3px focus ring, 4.5:1 contrast in light and dark,
-  no horizontal scroll at 320px.
+- **Floor:** text ≥ 12px, controls ≥ 44px, 3px focus ring, 4.5:1 contrast in light and dark
+  (placeholders included), 3:1 for input edges (--as-field-line), no horizontal scroll at 320px.
 
 ## Pieces
 
