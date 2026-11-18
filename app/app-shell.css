@@ -271,7 +271,9 @@ html { scroll-padding-top: 64px; scroll-padding-bottom: calc(16px + var(--as-toa
 .as { padding-bottom: var(--as-toast-space, 0px); }
 /* A waiting toast explains what to do next: let it wrap instead of cutting the instructions off. */
 .as-toast[data-waiting="true"] { border-radius: 18px; }
-.as-toast[data-waiting="true"] span { white-space: normal; }
+/* At most three lines (a long step name stays on one truncated line), so Undo always stays on screen. */
+.as-toast[data-waiting="true"] > span { display: -webkit-box; max-height: calc(3 * 1.4em); overflow: hidden; line-height: 1.4; white-space: normal; overflow-wrap: anywhere; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+.as-toast-name { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
 
 /* Forced colors (Windows High Contrast): the blue fill and white SVG tick are replaced, so a ticked circle would look
    empty. Draw the state with system colors instead: an outlined ring, and a Highlight disc with a HighlightText tick. */

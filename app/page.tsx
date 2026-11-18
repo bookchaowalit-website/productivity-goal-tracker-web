@@ -24,9 +24,10 @@ const removedLabel = (items: Removed[]) => {
 };
 
 /** Shown in the toast when Undo had to keep steps back because their goal is gone (deleted in another tab). */
+// The step name sits in its own span that truncates to one line, so a long name cannot push Undo off a small screen.
 const waitingLabel = (items: Removed[]) => (items.length === 1 && items[0].kind === "step"
-  ? `“${items[0].step.text}” needs its goal back first. Restore the goal, then press Undo.`
-  : `${items.length} steps need their goal back first. Restore the goal, then press Undo.`);
+  ? <><span className="as-toast-name">“{items[0].step.text}”</span> needs its goal back first. Restore the goal, then press Undo.</>
+  : <>{items.length} steps need their goal back first. Restore the goal, then press Undo.</>);
 
 // randomUUID only exists in secure contexts (HTTPS/localhost) and newer browsers.
 function createId(): string {
@@ -145,7 +146,17 @@ export default function Home() {
     event.preventDefault();
     const text = draftFor(goal.id);
     if (!text.trim()) return;
-    setGoals((items) => addMilestone(items, goal.id, text, createId()));
+    // Add only when the goal is still in the latest data (another tab may have deleted it): otherwise keep the draft,
+    // so it is still there if the goal comes back, and say what happened.
+    let added = false;
+    setGoals((items) => {
+      added = items.some((item) => item.id === goal.id);
+      return added ? addMilestone(items, goal.id, text, createId()) : items;
+    });
+    if (!added) {
+      setAnnouncement(`Could not add “${text.trim()}”: “${goal.title}” is no longer here. Your step is kept.`);
+      return;
+    }
     setStepDrafts((drafts) => ({ ...drafts, [goal.id]: "" }));
     setAnnouncement(`Added step “${text.trim()}” to “${goal.title}”.`);
     // Add disappears once the field is empty, so keep focus in the field for the next step.
@@ -280,7 +291,11 @@ export default function Home() {
                               aria-label={`Step ${index + 1} of ${goal.title}`}
                               value={step.text}
                               onChange={(event) => setGoals((items) => renameMilestone(items, goal.id, step.id, event.target.value))}
-                              onBlur={(event) => { if (!event.target.value.trim()) setGoals((items) => renameMilestone(items, goal.id, step.id, "Untitled step")); }}
+                              onBlur={() => setGoals((items) => {
+                                // Check the latest saved title, not this field: another tab may have named the step since.
+                                const latest = items.find((item) => item.id === goal.id)?.milestones.find((item) => item.id === step.id);
+                                return latest && !latest.text.trim() ? renameMilestone(items, goal.id, step.id, "Untitled step") : items;
+                              })}
                             />
                             <button type="button" className="as-plain as-icon" aria-label={`Remove step ${step.text}`} onClick={(event) => removeStep(goal, step, event.detail === 0)}><XIcon /></button>
                           </li>

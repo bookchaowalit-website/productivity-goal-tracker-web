@@ -194,6 +194,54 @@ describe("undo order and stored ids", () => {
     expect(space()).toBe("");
   });
 
+  it("a long step name in the waiting toast truncates on its own line and the message is capped at three lines", async () => {
+    const name = "A very long step name ".repeat(12).trim();
+    const input = $<HTMLInputElement>(".as-add-step input", card(SAMPLE))!;
+    type(input, name);
+    submit($<HTMLFormElement>(".as-add-step", card(SAMPLE))!);
+    press($(`[aria-label="Remove step ${name}"]`)!, 0);
+    act(() => {
+      localStorage.setItem(STORAGE_KEY, "[]");
+      window.dispatchEvent(new StorageEvent("storage", { key: STORAGE_KEY }));
+    });
+    press(button("Undo"));
+    expect($(".as-toast .as-toast-name")!.textContent).toBe(`“${name}”`);
+    expect(button("Undo", $(".as-toast")!)).toBeTruthy();
+    const { readFileSync } = await import("node:fs");
+    const css = readFileSync(`${process.cwd()}/app/app-shell.css`, "utf8");
+    expect(css).toMatch(/\.as-toast\[data-waiting="true"\] > span \{[^}]*max-height: calc\(3 \* 1\.4em\)[^}]*overflow-wrap: anywhere/);
+    expect(css).toMatch(/\.as-toast-name \{[^}]*text-overflow: ellipsis; white-space: nowrap/);
+  });
+
+  it("leaving an emptied step field keeps a title another tab saved meanwhile, and writes nothing", () => {
+    const second = $<HTMLInputElement>(`[aria-label="Step 2 of ${SAMPLE}"]`)!;
+    type(second, "");
+    const latest = JSON.parse(localStorage.getItem(STORAGE_KEY)!);
+    latest[0].milestones[1].text = "Named in another tab";
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(latest));
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    act(() => { second.dispatchEvent(new FocusEvent("focusout", { bubbles: true })); });
+    expect(setItem).not.toHaveBeenCalled();
+    setItem.mockRestore();
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!)[0].milestones[1].text).toBe("Named in another tab");
+  });
+
+  it("adding a step to a goal another tab deleted keeps the draft and says so; it comes back with the goal", () => {
+    const before = localStorage.getItem(STORAGE_KEY) ?? JSON.stringify([{ id: "mission-01", title: SAMPLE, archived: false, milestones: [] }]);
+    const input = $<HTMLInputElement>(".as-add-step input", card(SAMPLE))!;
+    type(input, "Write the README");
+    // Another tab deletes the goal; this tab has not had the storage event yet.
+    localStorage.setItem(STORAGE_KEY, "[]");
+    submit($<HTMLFormElement>(".as-add-step", card(SAMPLE))!);
+    expect(host.querySelector('[role="status"]')!.textContent).toBe(`Could not add “Write the README”: “${SAMPLE}” is no longer here. Your step is kept.`);
+    expect(localStorage.getItem(STORAGE_KEY)).toBe("[]");
+    act(() => {
+      localStorage.setItem(STORAGE_KEY, before);
+      window.dispatchEvent(new StorageEvent("storage", { key: STORAGE_KEY }));
+    });
+    expect($<HTMLInputElement>(".as-add-step input", card(SAMPLE))!.value).toBe("Write the README");
+  });
+
   it("a stored goal id like “constructor” renders and takes a step without reading Object.prototype", () => {
     act(() => root.unmount());
     localStorage.setItem(STORAGE_KEY, JSON.stringify([{ id: "constructor", title: "Proto", archived: false, milestones: [] }]));

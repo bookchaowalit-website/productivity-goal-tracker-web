@@ -30,6 +30,22 @@ A portfolio visitor, or one person in one browser, who wants to see goals broken
 - No account, sync, sharing or export. Clearing site data removes everything.
 - No product analytics beyond Vercel Analytics.
 
+## Known limits
+
+Two tabs of the same browser share one saved list. Every write builds on the latest saved data, and a write that
+changes nothing is skipped, but each tab only redraws when the browser delivers the `storage` event. So:
+
+- **Undo lasts 6 seconds** (one batch for every removal in the window; paused while focus is in the toast). After that
+  a removed goal or step is gone; there is no trash (App shell design).
+- **A step whose goal was deleted in another tab** stays in the Undo toast, which says the goal must come back first.
+  If the goal is never restored, or the toast times out first, the step is lost.
+- **A step added to a goal another tab just deleted** is not added; the draft is kept and returns with the goal. If
+  the goal never returns, the draft is dropped on reload (drafts are not saved).
+- **Same field edited in two tabs:** the last write wins. Leaving an emptied step field only fills in "Untitled step"
+  when the saved title is still empty.
+- **Archive in one tab while the other is open:** the other tab shows the old list until its next redraw; actions it
+  takes still apply to the latest saved data.
+
 ## Live URL and deploy state
 
 - Live: https://goal-tracker.bookchaowalit.com (HTTP 200 on 2026-10-23).
