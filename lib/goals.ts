@@ -119,19 +119,24 @@ export function removeMilestone(goals: Goal[], goalId: string, milestoneId: stri
   return goals.map((g) => (g.id === goalId ? { ...g, milestones: g.milestones.filter((m) => m.id !== milestoneId) } : g));
 }
 
-/** Put a removed item back before its old neighbour (or at the end when the neighbour is gone). */
-function insertBefore<T extends { id: string }>(items: T[], item: T, beforeId: string | null): T[] {
+/**
+ * Put a removed item back where it was: before its old next neighbour, else right after its old
+ * previous neighbour (so a row added at the end meanwhile stays after it), else at the end.
+ */
+function insertBefore<T extends { id: string }>(items: T[], item: T, beforeId: string | null, afterId: string | null = null): T[] {
   if (items.some((entry) => entry.id === item.id)) return items;
-  const at = beforeId ? items.findIndex((entry) => entry.id === beforeId) : -1;
-  return at < 0 ? [...items, item] : [...items.slice(0, at), item, ...items.slice(at)];
+  const before = beforeId ? items.findIndex((entry) => entry.id === beforeId) : -1;
+  const after = before < 0 && afterId ? items.findIndex((entry) => entry.id === afterId) : -1;
+  const at = before >= 0 ? before : after >= 0 ? after + 1 : items.length;
+  return [...items.slice(0, at), item, ...items.slice(at)];
 }
 
-export function restoreGoal(goals: Goal[], goal: Goal, beforeId: string | null): Goal[] {
-  return insertBefore(goals, goal, beforeId);
+export function restoreGoal(goals: Goal[], goal: Goal, beforeId: string | null, afterId: string | null = null): Goal[] {
+  return insertBefore(goals, goal, beforeId, afterId);
 }
 
-export function restoreMilestone(goals: Goal[], goalId: string, milestone: Milestone, beforeId: string | null): Goal[] {
-  return goals.map((g) => (g.id === goalId ? { ...g, milestones: insertBefore(g.milestones, milestone, beforeId) } : g));
+export function restoreMilestone(goals: Goal[], goalId: string, milestone: Milestone, beforeId: string | null, afterId: string | null = null): Goal[] {
+  return goals.map((g) => (g.id === goalId ? { ...g, milestones: insertBefore(g.milestones, milestone, beforeId, afterId) } : g));
 }
 
 export type GoalStatus = "Not started" | "In progress" | "Done";

@@ -123,6 +123,31 @@ describe("steps", () => {
   });
 });
 
+describe("undo order and stored ids", () => {
+  it("removing the last step, then adding one, then Undo puts the step back in its old place", () => {
+    press($('[aria-label="Remove step Deploy demos"]')!, 1);
+    const input = $<HTMLInputElement>(".as-add-step input", card(SAMPLE))!;
+    type(input, "Write the README");
+    submit($<HTMLFormElement>(".as-add-step", card(SAMPLE))!);
+    expect(steps(SAMPLE)).toEqual(["Base64 + hash tools", "Mini-apps batch", "Write the README"]);
+    press(button("Undo"));
+    expect(steps(SAMPLE)).toEqual(["Base64 + hash tools", "Mini-apps batch", "Deploy demos", "Write the README"]);
+  });
+
+  it("a stored goal id like “constructor” renders and takes a step without reading Object.prototype", () => {
+    act(() => root.unmount());
+    localStorage.setItem(STORAGE_KEY, JSON.stringify([{ id: "constructor", title: "Proto", archived: false, milestones: [] }]));
+    root = createRoot(host);
+    act(() => root.render(<Home />));
+    expect(goalTitles()).toEqual(["Proto"]);
+    const input = $<HTMLInputElement>(".as-add-step input", card("Proto"))!;
+    expect(input.value).toBe("");
+    type(input, "First");
+    submit($<HTMLFormElement>(".as-add-step", card("Proto"))!);
+    expect(steps("Proto")).toEqual(["First"]);
+  });
+});
+
 describe("archive, delete and undo", () => {
   it("archive moves a goal to Archived and keeps focus on the page; Restore brings it back", () => {
     press(button(`Archive`, card(SAMPLE)));

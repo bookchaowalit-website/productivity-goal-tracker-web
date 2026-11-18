@@ -133,6 +133,14 @@ describe("steps and undo helpers", () => {
     expect(restoreMilestone([goal], "g", goal.milestones[0], null)[0].milestones).toHaveLength(2);
   });
 
+  it("restoring the last step goes right after its old previous neighbour, before rows added since", () => {
+    const without = removeMilestone([goal], "g", "b");
+    const added = addMilestone(without, "g", "C", "c");
+    expect(restoreMilestone(added, "g", goal.milestones[1], null, "a")[0].milestones.map((m) => m.id)).toEqual(["a", "b", "c"]);
+    expect(restoreMilestone(added, "g", goal.milestones[1], null, "gone")[0].milestones.map((m) => m.id)).toEqual(["a", "c", "b"]);
+    expect(restoreGoal([goal], other, null, "g").map((g) => g.id)).toEqual(["g", "h"]);
+  });
+
   it("restoreGoal puts a goal back in place, at the end without a neighbour, and never twice", () => {
     expect(restoreGoal([other], goal, "h").map((g) => g.id)).toEqual(["g", "h"]);
     expect(restoreGoal([other], goal, null).map((g) => g.id)).toEqual(["h", "g"]);
