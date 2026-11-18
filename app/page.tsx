@@ -13,8 +13,15 @@ const store = createLocalStore(STORAGE_KEY, parseGoals, serializeGoals);
 const TONE: Record<GoalStatus, Tone> = { "Not started": "grey", "In progress": "amber", Done: "green" };
 type View = "Active" | "Archived";
 type Removed =
-  | { kind: "goal"; goal: Goal; beforeId: string | null; viaKeyboard: boolean }
-  | { kind: "step"; goalId: string; step: Milestone; beforeId: string | null; viaKeyboard: boolean };
+  | { kind: "goal"; goal: Goal; beforeId: string | null }
+  | { kind: "step"; goalId: string; step: Milestone; beforeId: string | null };
+/** Every removal still inside the Undo window: one Undo puts them all back where they were. */
+type RemovedBatch = { items: Removed[]; viaKeyboard: boolean };
+const removedLabel = (items: Removed[]) => {
+  if (items.length > 1) return `Removed ${items.length} items`;
+  const [item] = items;
+  return item.kind === "goal" ? `Deleted “${item.goal.title}”` : `Removed “${item.step.text}”`;
+};
 
 // randomUUID only exists in secure contexts (HTTPS/localhost) and newer browsers.
 function createId(): string {
@@ -34,7 +41,10 @@ export default function Home() {
   const [title, setTitle] = useState("");
   const [firstStep, setFirstStep] = useState("");
   const [stepDrafts, setStepDrafts] = useState<Record<string, string>>({});
-  const [removed, setRemoved] = useState<Removed | null>(null);
+  const [removed, setRemovedState] = useState<RemovedBatch | null>(null);
+  // The latest batch, so two removals before a re-render still both land in it.
+  const removedRef = useRef<RemovedBatch | null>(null);
+  const setRemoved = (batch: RemovedBatch | null) => { removedRef.current = batch; setRemovedState(batch); };
   const [toastFocused, setToastFocused] = useState(false);
   const [announcement, setAnnouncement] = useState("");
   const titleRef = useRef<HTMLInputElement>(null);
@@ -53,10 +63,10 @@ export default function Home() {
     wasComposing.current = composing;
   }, [composing]);
   useEffect(() => { if (removed?.viaKeyboard) undoRef.current?.focus(); }, [removed]);
-  // The toast closes after 6 s, but never while it holds focus.
+  // The toast closes 6 s after the latest removal (each removal restarts it), but never while it holds focus.
   useEffect(() => {
     if (!removed || toastFocused) return;
-    const timer = window.setTimeout(() => setRemoved(null), 6000);
+    const timer = window.setTimeout(() => { removedRef.current = null; setRemovedState(null); }, 6000);
     return () => window.clearTimeout(timer);
   }, [removed, toastFocused]);
 
@@ -81,17 +91,34 @@ export default function Home() {
     // composer when it is open (New goal is hidden then).
     (newRef.current ?? titleRef.current)?.focus();
   }
+  // Removals read the item and its neighbour from the stored list inside the same update (not from
+  // this render), then join the batch that one Undo restores.
+  function addToBatch(entry: Removed | undefined, viaKeyboard: boolean) {
+    if (!entry) return;
+    const items = [...(removedRef.current?.items ?? []), entry];
+    setRemoved({ items, viaKeyboard });
+    setAnnouncement(`${removedLabel(items)}. Undo is available for a few seconds.`);
+  }
   function removeGoal(goal: Goal, viaKeyboard: boolean) {
-    const index = goals.findIndex((entry) => entry.id === goal.id);
-    setGoals((items) => deleteGoal(items, goal.id));
-    setRemoved({ kind: "goal", goal, beforeId: goals[index + 1]?.id ?? null, viaKeyboard });
-    setAnnouncement(`Deleted “${goal.title}”. Undo is available for a few seconds.`);
+    let entry: Removed | undefined;
+    setGoals((items) => {
+      const index = items.findIndex((item) => item.id === goal.id);
+      if (index < 0) return items;
+      entry = { kind: "goal", goal: items[index], beforeId: items[index + 1]?.id ?? null };
+      return deleteGoal(items, goal.id);
+    });
+    addToBatch(entry, viaKeyboard);
   }
   function removeStep(goal: Goal, step: Milestone, viaKeyboard: boolean) {
-    const index = goal.milestones.findIndex((entry) => entry.id === step.id);
-    setGoals((items) => removeMilestone(items, goal.id, step.id));
-    setRemoved({ kind: "step", goalId: goal.id, step, beforeId: goal.milestones[index + 1]?.id ?? null, viaKeyboard });
-    setAnnouncement(`Removed step “${step.text}”. Undo is available for a few seconds.`);
+    let entry: Removed | undefined;
+    setGoals((items) => {
+      const steps = items.find((item) => item.id === goal.id)?.milestones ?? [];
+      const index = steps.findIndex((item) => item.id === step.id);
+      if (index < 0) return items;
+      entry = { kind: "step", goalId: goal.id, step: steps[index], beforeId: steps[index + 1]?.id ?? null };
+      return removeMilestone(items, goal.id, step.id);
+    });
+    addToBatch(entry, viaKeyboard);
   }
   function addStep(event: FormEvent<HTMLFormElement>, goal: Goal) {
     event.preventDefault();
@@ -109,16 +136,14 @@ export default function Home() {
     (newRef.current ?? titleRef.current)?.focus();
   }
   function undo() {
-    if (!removed) return;
-    if (removed.kind === "goal") {
-      const { goal, beforeId } = removed;
-      setGoals((items) => restoreGoal(items, goal, beforeId));
-      setAnnouncement(`Restored “${goal.title}”.`);
-    } else {
-      const { goalId, step, beforeId } = removed;
-      setGoals((items) => restoreMilestone(items, goalId, step, beforeId));
-      setAnnouncement(`Restored step “${step.text}”.`);
-    }
+    const batch = removedRef.current?.items;
+    if (!batch?.length) return;
+    // Latest removal first: a goal deleted after one of its steps comes back before that step does.
+    setGoals((items) => batch.reduceRight((list, entry) => (entry.kind === "goal"
+      ? restoreGoal(list, entry.goal, entry.beforeId)
+      : restoreMilestone(list, entry.goalId, entry.step, entry.beforeId)), items));
+    const [only] = batch;
+    setAnnouncement(batch.length > 1 ? `Restored ${batch.length} items.` : only.kind === "goal" ? `Restored “${only.goal.title}”.` : `Restored step “${only.step.text}”.`);
     closeToast();
   }
 
@@ -254,8 +279,8 @@ export default function Home() {
           onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setToastFocused(false); }}
           onKeyDown={(event) => { if (event.key === "Escape") closeToast(); }}
         >
-          <span>{removed.kind === "goal" ? `Deleted “${removed.goal.title}”` : `Removed “${removed.step.text}”`}</span>
-          <button ref={undoRef} type="button" className="as-plain" onClick={undo}>Undo</button>
+          <span>{removedLabel(removed.items)}</span>
+          <button ref={undoRef} type="button" className="as-plain" onClick={undo} aria-label={removed.items.length > 1 ? `Undo remove of ${removed.items.length} items` : undefined}>Undo</button>
         </div>
       ) : null}
 

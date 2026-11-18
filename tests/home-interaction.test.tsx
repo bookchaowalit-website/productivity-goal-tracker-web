@@ -167,4 +167,36 @@ describe("archive, delete and undo", () => {
     act(() => { vi.advanceTimersByTime(6000); });
     expect($(".as-toast")).toBeNull();
   });
+
+  it("removing a step and then its goal is one batch: Undo brings back the goal with the step in place", () => {
+    vi.useFakeTimers();
+    press($('[aria-label="Remove step Mini-apps batch"]')!, 0);
+    act(() => { vi.advanceTimersByTime(4000); });
+    press($(`[aria-label="Delete ${SAMPLE}"]`)!, 0);
+    expect(goalTitles()).toEqual([]);
+    expect($(".as-toast span")!.textContent).toBe("Removed 2 items");
+    expect(host.querySelector('[role="status"]')!.textContent).toContain("Removed 2 items");
+    expect(button("Undo").getAttribute("aria-label")).toBe("Undo remove of 2 items");
+    // The delete restarted the timer: 4 s + 4 s after the first removal, the toast is still open.
+    act(() => { button("New goal").focus(); });
+    act(() => { vi.advanceTimersByTime(4000); });
+    expect($(".as-toast")).not.toBeNull();
+    press(button("Undo"));
+    expect(goalTitles()).toEqual([SAMPLE]);
+    expect(steps(SAMPLE)).toEqual(["Base64 + hash tools", "Mini-apps batch", "Deploy demos"]);
+    expect(saved()[0].milestones.map((m: { text: string }) => m.text)).toEqual(["Base64 + hash tools", "Mini-apps batch", "Deploy demos"]);
+    expect(host.querySelector('[role="status"]')!.textContent).toBe("Restored 2 items.");
+  });
+});
+
+describe("field edges", () => {
+  it("step and add-step inputs show the 3:1 field edge at rest, not only on hover or focus", async () => {
+    const { readFileSync } = await import("node:fs");
+    const css = readFileSync(`${process.cwd()}/app/app-shell.css`, "utf8");
+    for (const selector of [".as-step-input {", ".as-add-step input {"]) {
+      const rule = css.slice(css.indexOf(selector), css.indexOf("}", css.indexOf(selector)));
+      expect(rule).toContain("border: 1px solid var(--as-field-line)");
+      expect(rule).not.toContain("transparent");
+    }
+  });
 });

@@ -246,8 +246,8 @@
 .as-steps { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--as-line); }
 .as-steps .as-row { padding: 4px 4px 4px 4px; gap: 4px; }
 .as-row-check.as-row { grid-template-columns: 44px minmax(0, 1fr) 44px; }
-.as-step-input { width: 100%; min-height: 44px; padding: 0 8px; border: 1px solid transparent; border-radius: 8px; background: transparent; font-size: 16px; text-overflow: ellipsis; }
-.as-step-input:hover { border-color: var(--as-line); }
+/* Editable fields show a 3:1 edge at rest (touch screens have no hover), like every other input. */
+.as-step-input { width: 100%; min-height: 44px; padding: 0 8px; border: 1px solid var(--as-field-line); border-radius: 8px; background: var(--as-surface); font-size: 16px; text-overflow: ellipsis; }
 .as-step-input:focus-visible { outline: 3px solid var(--as-focus); outline-offset: 0; }
 .as-row[data-done="true"] .as-step-input { color: var(--as-muted); text-decoration: line-through; }
 .as-plain.as-icon { width: 44px; padding: 0; color: var(--as-muted); }
@@ -255,7 +255,7 @@
 .as-add-step { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; align-items: center; gap: 4px; padding: 4px; border-top: 1px solid var(--as-line); }
 .as-add-icon { display: grid; place-items: center; color: var(--as-accent); }
 .as-add-icon svg { width: 20px; height: 20px; }
-.as-add-step input { width: 100%; min-height: 44px; padding: 0 8px; border: 1px solid transparent; border-radius: 8px; background: transparent; font-size: 16px; }
+.as-add-step input { width: 100%; min-height: 44px; padding: 0 8px; border: 1px solid var(--as-field-line); border-radius: 8px; background: var(--as-surface); font-size: 16px; }
 .as-add-step input::placeholder { color: var(--as-muted); opacity: 1; }
 .as-add-step input:focus-visible { outline: 3px solid var(--as-focus); outline-offset: 0; }
 .as-goal-foot { display: flex; justify-content: flex-end; gap: 4px; padding: 4px 8px; border-top: 1px solid var(--as-line); }
