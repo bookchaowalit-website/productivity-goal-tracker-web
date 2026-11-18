@@ -141,6 +141,14 @@ describe("steps and undo helpers", () => {
     expect(restoreGoal([goal], other, null, "g").map((g) => g.id)).toEqual(["g", "h"]);
   });
 
+  it("a lone removed step comes back at its old index, before steps added since", () => {
+    const lone: Goal = { id: "g", title: "G", archived: false, milestones: [{ id: "a", text: "A", done: false }] };
+    const added = addMilestone(removeMilestone([lone], "g", "a"), "g", "C", "c");
+    expect(restoreMilestone(added, "g", lone.milestones[0], null, null, 0)[0].milestones.map((m) => m.id)).toEqual(["a", "c"]);
+    expect(restoreMilestone(added, "g", lone.milestones[0], null, null, 9)[0].milestones.map((m) => m.id)).toEqual(["c", "a"]);
+    expect(restoreGoal([other], goal, null, null, 0).map((g) => g.id)).toEqual(["g", "h"]);
+  });
+
   it("restoreGoal puts a goal back in place, at the end without a neighbour, and never twice", () => {
     expect(restoreGoal([other], goal, "h").map((g) => g.id)).toEqual(["g", "h"]);
     expect(restoreGoal([other], goal, null).map((g) => g.id)).toEqual(["h", "g"]);

@@ -134,6 +134,16 @@ describe("undo order and stored ids", () => {
     expect(steps(SAMPLE)).toEqual(["Base64 + hash tools", "Mini-apps batch", "Deploy demos", "Write the README"]);
   });
 
+  it("removing a goal's only step, adding one, then Undo puts the step back first", () => {
+    for (const text of ["Base64 + hash tools", "Mini-apps batch"]) press($(`[aria-label="Remove step ${text}"]`)!, 1);
+    act(() => { $(".as-toast")!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })); });
+    press($('[aria-label="Remove step Deploy demos"]')!, 1);
+    type($<HTMLInputElement>(".as-add-step input", card(SAMPLE))!, "Publish");
+    submit($<HTMLFormElement>(".as-add-step", card(SAMPLE))!);
+    press(button("Undo"));
+    expect(steps(SAMPLE)).toEqual(["Deploy demos", "Publish"]);
+  });
+
   it("a stored goal id like “constructor” renders and takes a step without reading Object.prototype", () => {
     act(() => root.unmount());
     localStorage.setItem(STORAGE_KEY, JSON.stringify([{ id: "constructor", title: "Proto", archived: false, milestones: [] }]));

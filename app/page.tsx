@@ -13,8 +13,8 @@ const store = createLocalStore(STORAGE_KEY, parseGoals, serializeGoals);
 const TONE: Record<GoalStatus, Tone> = { "Not started": "grey", "In progress": "amber", Done: "green" };
 type View = "Active" | "Archived";
 type Removed =
-  | { kind: "goal"; goal: Goal; beforeId: string | null; afterId: string | null }
-  | { kind: "step"; goalId: string; step: Milestone; beforeId: string | null; afterId: string | null };
+  | { kind: "goal"; goal: Goal; beforeId: string | null; afterId: string | null; index: number }
+  | { kind: "step"; goalId: string; step: Milestone; beforeId: string | null; afterId: string | null; index: number };
 /** Every removal still inside the Undo window: one Undo puts them all back where they were. */
 type RemovedBatch = { items: Removed[]; viaKeyboard: boolean };
 const removedLabel = (items: Removed[]) => {
@@ -106,7 +106,7 @@ export default function Home() {
     setGoals((items) => {
       const index = items.findIndex((item) => item.id === goal.id);
       if (index < 0) return items;
-      entry = { kind: "goal", goal: items[index], beforeId: items[index + 1]?.id ?? null, afterId: items[index - 1]?.id ?? null };
+      entry = { kind: "goal", goal: items[index], beforeId: items[index + 1]?.id ?? null, afterId: items[index - 1]?.id ?? null, index };
       return deleteGoal(items, goal.id);
     });
     addToBatch(entry, viaKeyboard);
@@ -117,7 +117,7 @@ export default function Home() {
       const steps = items.find((item) => item.id === goal.id)?.milestones ?? [];
       const index = steps.findIndex((item) => item.id === step.id);
       if (index < 0) return items;
-      entry = { kind: "step", goalId: goal.id, step: steps[index], beforeId: steps[index + 1]?.id ?? null, afterId: steps[index - 1]?.id ?? null };
+      entry = { kind: "step", goalId: goal.id, step: steps[index], beforeId: steps[index + 1]?.id ?? null, afterId: steps[index - 1]?.id ?? null, index };
       return removeMilestone(items, goal.id, step.id);
     });
     addToBatch(entry, viaKeyboard);
@@ -142,8 +142,8 @@ export default function Home() {
     if (!batch?.length) return;
     // Latest removal first: a goal deleted after one of its steps comes back before that step does.
     setGoals((items) => batch.reduceRight((list, entry) => (entry.kind === "goal"
-      ? restoreGoal(list, entry.goal, entry.beforeId, entry.afterId)
-      : restoreMilestone(list, entry.goalId, entry.step, entry.beforeId, entry.afterId)), items));
+      ? restoreGoal(list, entry.goal, entry.beforeId, entry.afterId, entry.index)
+      : restoreMilestone(list, entry.goalId, entry.step, entry.beforeId, entry.afterId, entry.index)), items));
     const [only] = batch;
     setAnnouncement(batch.length > 1 ? `Restored ${batch.length} items.` : only.kind === "goal" ? `Restored “${only.goal.title}”.` : `Restored step “${only.step.text}”.`);
     closeToast();
