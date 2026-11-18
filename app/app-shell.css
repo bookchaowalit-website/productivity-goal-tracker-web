@@ -264,3 +264,6 @@
   .as-row-check.as-row { grid-template-columns: 44px minmax(0, 1fr) 44px; }
   .as-row-check.as-row .as-plain { grid-column: auto; grid-row: auto; }
 }
+
+/* The top bar is sticky: keep skip-link targets and keyboard-focused controls clear of it when the page scrolls to them. */
+html { scroll-padding-top: 64px; scroll-padding-bottom: 16px; }
