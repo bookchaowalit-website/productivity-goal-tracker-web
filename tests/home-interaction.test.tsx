@@ -160,7 +160,7 @@ describe("undo order and stored ids", () => {
     expect(status).not.toContain("Restored");
     expect(status).toContain("1 step is waiting for a goal");
     expect($(".as-toast")).not.toBeNull();
-    expect($(".as-toast span")!.textContent).toBe("“Mini-apps batch” needs its goal back first. Restore the goal, then press Undo.");
+    expect($(".as-toast > span")!.textContent).toBe("“Mini-apps batch”Its goal is gone. Restore the goal, then press Undo.");
     expect(document.activeElement?.textContent).toBe("Undo");
     // The other tab undoes its delete: the goal is back without the step.
     act(() => {
@@ -196,7 +196,7 @@ describe("undo order and stored ids", () => {
     expect(space()).toBe("");
   });
 
-  it("a long step name in the waiting toast truncates on its own line and the message is capped at three lines", async () => {
+  it("a long step name in the waiting toast truncates on its own line; the instruction is never clamped", async () => {
     const name = "A very long step name ".repeat(12).trim();
     const input = $<HTMLInputElement>(".as-add-step input", card(SAMPLE))!;
     type(input, name);
@@ -211,8 +211,11 @@ describe("undo order and stored ids", () => {
     expect(button("Undo", $(".as-toast")!)).toBeTruthy();
     const { readFileSync } = await import("node:fs");
     const css = readFileSync(`${process.cwd()}/app/app-shell.css`, "utf8");
-    expect(css).toMatch(/\.as-toast\[data-waiting="true"\] > span \{[^}]*max-height: calc\(3 \* 1\.4em\)[^}]*overflow-wrap: anywhere/);
-    expect(css).toMatch(/\.as-toast-name \{[^}]*text-overflow: ellipsis; white-space: nowrap/);
+    const waiting = css.match(/\.as-toast\[data-waiting="true"\] > span \{[^}]*\}/)![0];
+    expect(waiting).toContain("white-space: normal");
+    expect(waiting).not.toMatch(/max-height|line-clamp/);
+    expect(css).toMatch(/\.as-toast-name \{[^}]*display: block[^}]*text-overflow: ellipsis; white-space: nowrap/);
+    expect($(".as-toast > span")!.textContent).toContain("Restore the goal, then press Undo.");
   });
 
   it("leaving an emptied step field keeps a title another tab saved meanwhile, and writes nothing", () => {
@@ -236,6 +239,9 @@ describe("undo order and stored ids", () => {
     localStorage.setItem(STORAGE_KEY, "[]");
     submit($<HTMLFormElement>(".as-add-step", card(SAMPLE))!);
     expect(host.querySelector('[role="status"]')!.textContent).toBe(`Could not add “Write the README”: “${SAMPLE}” is no longer here. Your step is kept.`);
+    // Visible on the page too, outside the card that is about to disappear.
+    expect($(".as-notice p")!.textContent).toBe(`Could not add “Write the README”: “${SAMPLE}” is no longer here. Your step is kept.`);
+    expect($(".as-notice")!.closest(".as-goal")).toBeNull();
     expect(localStorage.getItem(STORAGE_KEY)).toBe("[]");
     act(() => {
       localStorage.setItem(STORAGE_KEY, before);
@@ -269,6 +275,51 @@ describe("undo order and stored ids", () => {
     expect(saved().map((g: { title: string }) => g.title)).toEqual(["Run a 10k", SAMPLE]);
     expect(saved()[1].milestones.map((m: { text: string }) => m.text)).toContain("Added in another tab");
     expect(steps(SAMPLE)).toContain("Added in another tab");
+  });
+
+  it("Archive and Restore set the state their button names, even after another tab changed it", () => {
+    const stored = (archived: boolean) => JSON.stringify([{ id: "mission-01", title: SAMPLE, archived, milestones: [] }]);
+    // Another tab archives the goal; this tab has not redrawn and still offers Archive.
+    localStorage.setItem(STORAGE_KEY, stored(true));
+    press(button("Archive", card(SAMPLE)));
+    expect(saved()[0].archived).toBe(true);
+    expect(host.querySelector('[role="status"]')!.textContent).toBe(`Archived “${SAMPLE}”. It is under Archived.`);
+    press(button("Archived", $(".as-side")!));
+    // Another tab restores it; this tab still offers Restore.
+    localStorage.setItem(STORAGE_KEY, stored(false));
+    press(button("Restore", card(SAMPLE)));
+    expect(saved()[0].archived).toBe(false);
+    expect(host.querySelector('[role="status"]')!.textContent).toBe(`Moved “${SAMPLE}” back to Active.`);
+  });
+
+  it("the not-saved notice can be dismissed, and the kept draft adds once the goal is back", () => {
+    type($<HTMLInputElement>(".as-add-step input", card(SAMPLE))!, "First try");
+    const before = JSON.stringify([{ id: "mission-01", title: SAMPLE, archived: false, milestones: [] }]);
+    localStorage.setItem(STORAGE_KEY, "[]");
+    submit($<HTMLFormElement>(".as-add-step", card(SAMPLE))!);
+    expect($(".as-notice")).not.toBeNull();
+    press(button("Dismiss", $(".as-notice")!));
+    expect($(".as-notice")).toBeNull();
+    act(() => {
+      localStorage.setItem(STORAGE_KEY, before);
+      window.dispatchEvent(new StorageEvent("storage", { key: STORAGE_KEY }));
+    });
+    submit($<HTMLFormElement>(".as-add-step", card(SAMPLE))!);
+    expect(steps(SAMPLE)).toEqual(["First try"]);
+    expect($(".as-notice")).toBeNull();
+  });
+
+  it("a successful add clears an earlier not-saved notice", () => {
+    type($<HTMLInputElement>(".as-add-step input", card(SAMPLE))!, "First try");
+    localStorage.setItem(STORAGE_KEY, "[]");
+    submit($<HTMLFormElement>(".as-add-step", card(SAMPLE))!);
+    act(() => {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify([{ id: "mission-01", title: SAMPLE, archived: false, milestones: [] }]));
+      window.dispatchEvent(new StorageEvent("storage", { key: STORAGE_KEY }));
+    });
+    expect($(".as-notice")).not.toBeNull();
+    submit($<HTMLFormElement>(".as-add-step", card(SAMPLE))!);
+    expect($(".as-notice")).toBeNull();
   });
 
   it("a stored goal id like “constructor” renders and takes a step without reading Object.prototype", () => {

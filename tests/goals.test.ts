@@ -14,6 +14,7 @@ import {
   progress,
   renameMilestone,
   serializeGoals,
+  setArchived,
   toggleArchived,
   toggleMilestone,
   visibleGoals,
@@ -95,6 +96,9 @@ describe("goal actions", () => {
   it("archives, restores and deletes by id", () => {
     expect(toggleArchived(goals, "a")[0].archived).toBe(true);
     expect(toggleArchived(goals, "b")[1].archived).toBe(false);
+    expect(setArchived(goals, "a", true)[0].archived).toBe(true);
+    expect(setArchived(goals, "a", false)).toBe(goals);
+    expect(setArchived(goals, "gone", true)).toBe(goals);
     expect(deleteGoal(goals, "a").map((g) => g.id)).toEqual(["b"]);
   });
 

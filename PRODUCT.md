@@ -43,8 +43,15 @@ changes nothing is skipped, but each tab only redraws when the browser delivers 
   the goal never returns, the draft is dropped on reload (drafts are not saved).
 - **Same field edited in two tabs:** the last write wins. Leaving an emptied step field only fills in "Untitled step"
   when the saved title is still empty.
-- **Archive in one tab while the other is open:** the other tab shows the old list until its next redraw; actions it
-  takes still apply to the latest saved data.
+- **Undo from two tabs can change step order.** Each tab remembers neighbours and the old index at the time it removed
+  a step; if both tabs removed steps of the same goal and both Undo, the second restore can land in a different place
+  (e.g. A, B, C comes back as B, C, A). Nothing is lost, only the order.
+- **A step that could not be added** (its goal was deleted in another tab) shows a notice on the page until it is
+  dismissed or the next step is added; the draft comes back only if the goal does.
+- **Progress rounds** to a whole percent, so 199 of 200 steps can show a full bar while the goal is still In progress.
+- **A step saved with an empty title** by an older version has a Remove button named only "Remove step".
+- **Archive in one tab while the other is open:** the other tab shows the old list until its next redraw. Archive and
+  Restore set the state their button names, so a stale tab never flips a goal the wrong way.
 
 ## Live URL and deploy state
 

@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "re
 import { AppFoot, AppTop, ListButton, Pill, PlusIcon, type Tone } from "@/components/app-shell";
 import {
   STORAGE_KEY, activeGoals, addGoal as addGoalTo, addMilestone, averageProgress, deleteGoal, goalStatus, parseGoals, progress,
-  removeMilestone, renameMilestone, restoreGoal, restoreMilestone, serializeGoals, stepSummary, toggleArchived, toggleMilestone,
+  removeMilestone, renameMilestone, restoreGoal, restoreMilestone, serializeGoals, setArchived, stepSummary, toggleMilestone,
   type Goal, type GoalStatus, type Milestone,
 } from "@/lib/goals";
 import { createLocalStore, useLocalStore } from "@/lib/local-store";
@@ -26,8 +26,8 @@ const removedLabel = (items: Removed[]) => {
 /** Shown in the toast when Undo had to keep steps back because their goal is gone (deleted in another tab). */
 // The step name sits in its own span that truncates to one line, so a long name cannot push Undo off a small screen.
 const waitingLabel = (items: Removed[]) => (items.length === 1 && items[0].kind === "step"
-  ? <><span className="as-toast-name">“{items[0].step.text}”</span> needs its goal back first. Restore the goal, then press Undo.</>
-  : <>{items.length} steps need their goal back first. Restore the goal, then press Undo.</>);
+  ? <><span className="as-toast-name">“{items[0].step.text}”</span>Its goal is gone. Restore the goal, then press Undo.</>
+  : <>{items.length} steps wait for their goal. Restore it, then press Undo.</>);
 
 const goalCardId = (goalId: string) => `goal-card-${goalId}`;
 const stepFieldId = (goalId: string, stepId: string) => `step-${goalId}-${stepId}`;
@@ -58,6 +58,8 @@ export default function Home() {
   const setRemoved = (batch: RemovedBatch | null) => { removedRef.current = batch; setRemovedState(batch); };
   const [toastFocused, setToastFocused] = useState(false);
   const [announcement, setAnnouncement] = useState("");
+  // A visible message for an action that could not be saved (the live region below is for screen readers only).
+  const [notice, setNotice] = useState("");
   const titleRef = useRef<HTMLInputElement>(null);
   const newRef = useRef<HTMLButtonElement>(null);
   const undoRef = useRef<HTMLButtonElement>(null);
@@ -129,8 +131,10 @@ export default function Home() {
     closeComposer();
   }
   function archive(goal: Goal) {
-    setGoals((items) => toggleArchived(items, goal.id));
-    setAnnouncement(goal.archived ? `Moved “${goal.title}” back to Active.` : `Archived “${goal.title}”. It is under Archived.`);
+    // The button names the state to reach (Archive or Restore): set it, never toggle what another tab may have saved.
+    const archived = !goal.archived;
+    setGoals((items) => setArchived(items, goal.id, archived));
+    setAnnouncement(archived ? `Archived “${goal.title}”. It is under Archived.` : `Moved “${goal.title}” back to Active.`);
     // The card leaves this list, so its button goes with it: move focus to New goal, or to the
     // composer when it is open (New goal is hidden then).
     (newRef.current ?? titleRef.current)?.focus();
@@ -176,9 +180,13 @@ export default function Home() {
       return added ? addMilestone(items, goal.id, text, createId()) : items;
     });
     if (!added) {
-      setAnnouncement(`Could not add “${text.trim()}”: “${goal.title}” is no longer here. Your step is kept.`);
+      // Shown on the page too (the card is about to disappear), not only in the screen-reader live region.
+      const message = `Could not add “${text.trim()}”: “${goal.title}” is no longer here. Your step is kept.`;
+      setNotice(message);
+      setAnnouncement(message);
       return;
     }
+    setNotice("");
     setStepDrafts((drafts) => ({ ...drafts, [goal.id]: "" }));
     setAnnouncement(`Added step “${text.trim()}” to “${goal.title}”.`);
     // Add disappears once the field is empty, so keep focus in the field for the next step.
@@ -275,6 +283,13 @@ export default function Home() {
                 </div>
               </div>
             </form>
+          ) : null}
+
+          {notice ? (
+            <div className="as-notice">
+              <p>{notice}</p>
+              <button type="button" className="as-plain" onClick={() => setNotice("")}>Dismiss</button>
+            </div>
           ) : null}
 
           {visible.length ? (

@@ -273,9 +273,13 @@ html { scroll-padding-top: 64px; scroll-padding-bottom: calc(16px + var(--as-toa
 .as { padding-bottom: var(--as-toast-space, 0px); }
 /* A waiting toast explains what to do next: let it wrap instead of cutting the instructions off. */
 .as-toast[data-waiting="true"] { border-radius: 18px; }
-/* At most three lines (a long step name stays on one truncated line), so Undo always stays on screen. */
-.as-toast[data-waiting="true"] > span { display: -webkit-box; max-height: calc(3 * 1.4em); overflow: hidden; line-height: 1.4; white-space: normal; overflow-wrap: anywhere; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
-.as-toast-name { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
+/* Only the step name is cut (one line); the short instruction below it always shows in full, even at 320px. */
+.as-toast[data-waiting="true"] > span { line-height: 1.4; white-space: normal; overflow-wrap: anywhere; }
+.as-toast-name { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* A visible notice for an action that could not be saved. */
+.as-notice { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 16px; padding: 8px 8px 8px 16px; border: 1px solid var(--as-amber); border-radius: 14px; background: var(--as-amber-bg); color: var(--as-fg); font-size: 15px; }
+.as-notice p { margin: 0; overflow-wrap: anywhere; }
+.as-notice .as-plain { flex: none; }
 
 /* Forced colors (Windows High Contrast): the blue fill and white SVG tick are replaced, so a ticked circle would look
    empty. Draw the state with system colors instead: an outlined ring, and a Highlight disc with a HighlightText tick. */

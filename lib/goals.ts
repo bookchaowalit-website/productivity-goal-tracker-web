@@ -86,6 +86,12 @@ export function addGoal(goals: Goal[], title: string, makeId: () => string, firs
   return { ok: true, goals: [goal, ...goals] };
 }
 
+/** Set a goal's archived state to the value asked for (not a toggle). Returns the same array when nothing changes. */
+export function setArchived(goals: Goal[], goalId: string, archived: boolean): Goal[] {
+  if (!goals.some((g) => g.id === goalId && g.archived !== archived)) return goals;
+  return goals.map((g) => (g.id === goalId ? { ...g, archived } : g));
+}
+
 export function toggleArchived(goals: Goal[], goalId: string): Goal[] {
   return goals.map((g) => (g.id === goalId ? { ...g, archived: !g.archived } : g));
 }
