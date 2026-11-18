@@ -115,9 +115,15 @@ export default function Home() {
   }
   function add(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const result = addGoalTo(goals, title, createId, firstStep);
-    if (!result.ok) return;
-    setGoals(result.goals);
+    // Build on the store's latest value inside one update, not this render's list: another tab may have saved since,
+    // and writing a stale list would drop its changes.
+    let added = false;
+    setGoals((items) => {
+      const result = addGoalTo(items, title, createId, firstStep);
+      added = result.ok;
+      return result.goals;
+    });
+    if (!added) return;
     setView("Active");
     setAnnouncement(`Added “${title.trim()}”.`);
     closeComposer();

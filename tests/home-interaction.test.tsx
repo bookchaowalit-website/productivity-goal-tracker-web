@@ -256,6 +256,21 @@ describe("undo order and stored ids", () => {
     expect(saved()[0].milestones[1].text).toBe("");
   });
 
+  it("adding a goal builds on what another tab saved meanwhile, so that tab's new step is kept", () => {
+    press(button("New goal"));
+    type($<HTMLInputElement>(".as-composer input")!, "Run a 10k");
+    // Another tab adds a step; this tab has not had the storage event yet.
+    const elsewhere = [{ id: "mission-01", title: SAMPLE, archived: false, milestones: [
+      { id: "a", text: "Base64 + hash tools", done: true }, { id: "b", text: "Mini-apps batch", done: false },
+      { id: "c", text: "Deploy demos", done: false }, { id: "d", text: "Added in another tab", done: false },
+    ] }];
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(elsewhere));
+    press(button("Add", $(".as-composer")!));
+    expect(saved().map((g: { title: string }) => g.title)).toEqual(["Run a 10k", SAMPLE]);
+    expect(saved()[1].milestones.map((m: { text: string }) => m.text)).toContain("Added in another tab");
+    expect(steps(SAMPLE)).toContain("Added in another tab");
+  });
+
   it("a stored goal id like “constructor” renders and takes a step without reading Object.prototype", () => {
     act(() => root.unmount());
     localStorage.setItem(STORAGE_KEY, JSON.stringify([{ id: "constructor", title: "Proto", archived: false, milestones: [] }]));
