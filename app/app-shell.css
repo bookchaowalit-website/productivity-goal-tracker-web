@@ -237,6 +237,8 @@
 /* Added with goal-tracker (2026-11-14): goal cards, each with a progress bar and a step checklist. */
 .as-goals { display: grid; gap: 16px; }
 .as-goal { border: 1px solid var(--as-line); border-radius: 18px; background: var(--as-surface); box-shadow: var(--as-shadow); overflow: hidden; }
+/* A restored goal card takes focus after Undo: show where focus landed. */
+.as-goal:focus { outline: 3px solid var(--as-focus); outline-offset: 2px; }
 .as-goal-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 16px 16px 10px; }
 .as-goal-head > div { min-width: 0; }
 .as-goal-head h2 { margin: 0; font-size: 19px; font-weight: 600; letter-spacing: -.01em; line-height: 1.3; overflow-wrap: anywhere; }

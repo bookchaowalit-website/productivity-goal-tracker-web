@@ -29,6 +29,9 @@ const waitingLabel = (items: Removed[]) => (items.length === 1 && items[0].kind 
   ? <><span className="as-toast-name">“{items[0].step.text}”</span> needs its goal back first. Restore the goal, then press Undo.</>
   : <>{items.length} steps need their goal back first. Restore the goal, then press Undo.</>);
 
+const goalCardId = (goalId: string) => `goal-card-${goalId}`;
+const stepFieldId = (goalId: string, stepId: string) => `step-${goalId}-${stepId}`;
+
 // randomUUID only exists in secure contexts (HTTPS/localhost) and newer browsers.
 function createId(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") return crypto.randomUUID();
@@ -59,6 +62,11 @@ export default function Home() {
   const newRef = useRef<HTMLButtonElement>(null);
   const undoRef = useRef<HTMLButtonElement>(null);
   const toastRef = useRef<HTMLDivElement>(null);
+  // The id of the control to focus once Undo's restore has rendered (the restored step, or the restored goal card).
+  const focusAfterUndo = useRef<string | null>(null);
+  // Step titles this tab typed, by step id: leaving a field only fills in "Untitled step" for an edit made here,
+  // and only while the saved title is still what this tab wrote (another tab may be mid-edit on the same step).
+  const typedTitles = useRef(new Map<string, string>());
   const wasComposing = useRef(false);
 
   const active = activeGoals(goals);
@@ -72,6 +80,14 @@ export default function Home() {
     wasComposing.current = composing;
   }, [composing]);
   useEffect(() => { if (removed?.viaKeyboard) undoRef.current?.focus(); }, [removed]);
+  // Runs after every render, so it fires on the render that shows the restored item.
+  useEffect(() => {
+    const id = focusAfterUndo.current;
+    if (!id) return;
+    focusAfterUndo.current = null;
+    // Not on screen (e.g. restored into the other list): fall back to New goal, or the composer when it is open.
+    (document.getElementById(id) ?? newRef.current ?? titleRef.current)?.focus();
+  });
   // The toast closes 6 s after the latest removal (each removal restarts it), but never while it holds focus.
   useEffect(() => {
     if (!removed || toastFocused) return;
@@ -162,10 +178,11 @@ export default function Home() {
     // Add disappears once the field is empty, so keep focus in the field for the next step.
     event.currentTarget.querySelector("input")?.focus();
   }
-  function closeToast() {
+  function closeToast(focusId?: string) {
     setRemoved(null);
     setToastFocused(false);
-    (newRef.current ?? titleRef.current)?.focus();
+    if (focusId) focusAfterUndo.current = focusId;
+    else (newRef.current ?? titleRef.current)?.focus();
   }
   function undo() {
     const batch = removedRef.current?.items;
@@ -194,7 +211,9 @@ export default function Home() {
     const done = !restored.length ? "" : restored.length > 1 ? `Restored ${restored.length} items. ` : only.kind === "goal" ? `Restored “${only.goal.title}”. ` : `Restored step “${only.step.text}”. `;
     if (!pending.length) {
       setAnnouncement(done.trim());
-      closeToast();
+      // Focus what came back from the latest removal: its step field, or its goal card.
+      const latest = restored[restored.length - 1];
+      closeToast(latest.kind === "step" ? stepFieldId(latest.goalId, latest.step.id) : goalCardId(latest.goal.id));
       return;
     }
     // Keep the toast for what could not go back yet, and keep focus on its Undo button.
@@ -259,7 +278,7 @@ export default function Home() {
                 const status = goalStatus(goal);
                 const draft = draftFor(goal.id);
                 return (
-                  <section className="as-goal" key={goal.id} aria-labelledby={`goal-${goal.id}`}>
+                  <section className="as-goal" key={goal.id} id={goalCardId(goal.id)} tabIndex={-1} aria-labelledby={`goal-${goal.id}`}>
                     <div className="as-goal-head">
                       <div>
                         <h2 id={`goal-${goal.id}`}>{goal.title}</h2>
@@ -288,14 +307,23 @@ export default function Home() {
                             </label>
                             <input
                               className="as-step-input"
+                              id={stepFieldId(goal.id, step.id)}
                               aria-label={`Step ${index + 1} of ${goal.title}`}
                               value={step.text}
-                              onChange={(event) => setGoals((items) => renameMilestone(items, goal.id, step.id, event.target.value))}
-                              onBlur={() => setGoals((items) => {
-                                // Check the latest saved title, not this field: another tab may have named the step since.
-                                const latest = items.find((item) => item.id === goal.id)?.milestones.find((item) => item.id === step.id);
-                                return latest && !latest.text.trim() ? renameMilestone(items, goal.id, step.id, "Untitled step") : items;
-                              })}
+                              onChange={(event) => {
+                                typedTitles.current.set(step.id, event.target.value);
+                                setGoals((items) => renameMilestone(items, goal.id, step.id, event.target.value));
+                              }}
+                              onBlur={() => {
+                                const typed = typedTitles.current.get(step.id);
+                                typedTitles.current.delete(step.id);
+                                // Not edited in this tab since focus: nothing to fix up, and nothing to write.
+                                if (typed === undefined) return;
+                                setGoals((items) => {
+                                  const latest = items.find((item) => item.id === goal.id)?.milestones.find((item) => item.id === step.id);
+                                  return latest && latest.text === typed && !typed.trim() ? renameMilestone(items, goal.id, step.id, "Untitled step") : items;
+                                });
+                              }}
                             />
                             <button type="button" className="as-plain as-icon" aria-label={`Remove step ${step.text}`} onClick={(event) => removeStep(goal, step, event.detail === 0)}><XIcon /></button>
                           </li>

@@ -118,6 +118,8 @@ describe("steps", () => {
     expect($(".as-toast")!.textContent).toContain("Removed “Mini-apps batch”");
     press(button("Undo"));
     expect(steps(SAMPLE)).toEqual(["Base64 + hash tools", "Mini-apps batch", "Deploy demos"]);
+    // Focus goes back to the restored step's field, not to the top of the page.
+    expect(document.activeElement).toBe($(`[aria-label="Step 2 of ${SAMPLE}"]`));
     for (const text of ["Base64 + hash tools", "Mini-apps batch", "Deploy demos"]) press($(`[aria-label="Remove step ${text}"]`)!, 1);
     expect(card(SAMPLE).textContent).toContain("No steps yet");
   });
@@ -242,6 +244,18 @@ describe("undo order and stored ids", () => {
     expect($<HTMLInputElement>(".as-add-step input", card(SAMPLE))!.value).toBe("Write the README");
   });
 
+  it("tabbing through a step field without typing writes nothing, even if another tab saved it empty mid-edit", () => {
+    const second = $<HTMLInputElement>(`[aria-label="Step 2 of ${SAMPLE}"]`)!;
+    const latest = [{ id: "mission-01", title: SAMPLE, archived: false, milestones: [{ id: "a", text: "Base64 + hash tools", done: true }, { id: "b", text: "", done: false }, { id: "c", text: "Deploy demos", done: false }] }];
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(latest));
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    act(() => { second.focus(); });
+    act(() => { second.dispatchEvent(new FocusEvent("focusout", { bubbles: true })); });
+    expect(setItem).not.toHaveBeenCalled();
+    setItem.mockRestore();
+    expect(saved()[0].milestones[1].text).toBe("");
+  });
+
   it("a stored goal id like “constructor” renders and takes a step without reading Object.prototype", () => {
     act(() => root.unmount());
     localStorage.setItem(STORAGE_KEY, JSON.stringify([{ id: "constructor", title: "Proto", archived: false, milestones: [] }]));
@@ -276,13 +290,13 @@ describe("archive, delete and undo", () => {
     expect(document.activeElement).toBe($(".as-composer input"));
   });
 
-  it("keyboard delete focuses Undo; Undo restores the goal and focuses New goal; mouse delete empties the list", () => {
+  it("keyboard delete focuses Undo; Undo restores the goal and focuses its card; mouse delete empties the list", () => {
     press($(`[aria-label="Delete ${SAMPLE}"]`)!, 0);
     expect(goalTitles()).toEqual([]);
     expect(document.activeElement?.textContent).toBe("Undo");
     press(button("Undo"));
     expect(goalTitles()).toEqual([SAMPLE]);
-    expect(document.activeElement?.textContent).toContain("New goal");
+    expect(document.activeElement).toBe(card(SAMPLE));
     press($(`[aria-label="Delete ${SAMPLE}"]`)!, 1);
     expect(host.textContent).toContain("No goals yet");
   });
