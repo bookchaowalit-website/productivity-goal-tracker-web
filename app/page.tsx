@@ -140,13 +140,38 @@ export default function Home() {
   function undo() {
     const batch = removedRef.current?.items;
     if (!batch?.length) return;
-    // Latest removal first: a goal deleted after one of its steps comes back before that step does.
-    setGoals((items) => batch.reduceRight((list, entry) => (entry.kind === "goal"
-      ? restoreGoal(list, entry.goal, entry.beforeId, entry.afterId, entry.index)
-      : restoreMilestone(list, entry.goalId, entry.step, entry.beforeId, entry.afterId, entry.index)), items));
-    const [only] = batch;
-    setAnnouncement(batch.length > 1 ? `Restored ${batch.length} items.` : only.kind === "goal" ? `Restored “${only.goal.title}”.` : `Restored step “${only.step.text}”.`);
-    closeToast();
+    // Latest removal first: a goal deleted after one of its steps comes back before that step does. A step whose
+    // goal is gone (deleted in another tab) stays pending, so Undo can still bring it back once the goal returns.
+    const restored: Removed[] = [];
+    const pending: Removed[] = [];
+    setGoals((items) => {
+      restored.length = 0;
+      pending.length = 0;
+      return batch.reduceRight((list, entry) => {
+        if (entry.kind === "goal") {
+          restored.unshift(entry);
+          return restoreGoal(list, entry.goal, entry.beforeId, entry.afterId, entry.index);
+        }
+        if (!list.some((goal) => goal.id === entry.goalId)) {
+          pending.unshift(entry);
+          return list;
+        }
+        restored.unshift(entry);
+        return restoreMilestone(list, entry.goalId, entry.step, entry.beforeId, entry.afterId, entry.index);
+      }, items);
+    });
+    const [only] = restored;
+    const done = !restored.length ? "" : restored.length > 1 ? `Restored ${restored.length} items. ` : only.kind === "goal" ? `Restored “${only.goal.title}”. ` : `Restored step “${only.step.text}”. `;
+    if (!pending.length) {
+      setAnnouncement(done.trim());
+      closeToast();
+      return;
+    }
+    // Keep the toast for what could not go back yet, and keep focus on its Undo button.
+    setRemoved({ items: pending, viaKeyboard: true });
+    const waiting = pending.length === 1 ? "1 step is" : `${pending.length} steps are`;
+    setAnnouncement(`${done}${waiting} waiting for a goal that is no longer here. Restore the goal, then press Undo again.`);
+    undoRef.current?.focus();
   }
 
   const heading = view === "Active" ? "Active goals" : "Archived";

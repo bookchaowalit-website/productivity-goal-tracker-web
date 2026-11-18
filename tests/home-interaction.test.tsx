@@ -144,6 +144,33 @@ describe("undo order and stored ids", () => {
     expect(steps(SAMPLE)).toEqual(["Deploy demos", "Publish"]);
   });
 
+  it("Undo keeps a step pending while its goal is gone (deleted in another tab) and restores it once the goal is back", () => {
+    press($('[aria-label="Remove step Mini-apps batch"]')!, 0);
+    const before = localStorage.getItem(STORAGE_KEY)!;
+    // Another tab deletes the whole goal.
+    act(() => {
+      localStorage.setItem(STORAGE_KEY, "[]");
+      window.dispatchEvent(new StorageEvent("storage", { key: STORAGE_KEY }));
+    });
+    expect(goalTitles()).toEqual([]);
+    press(button("Undo"));
+    const status = host.querySelector('[role="status"]')!.textContent;
+    expect(status).not.toContain("Restored");
+    expect(status).toContain("1 step is waiting for a goal");
+    expect($(".as-toast")).not.toBeNull();
+    expect(document.activeElement?.textContent).toBe("Undo");
+    // The other tab undoes its delete: the goal is back without the step.
+    act(() => {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(JSON.parse(before)));
+      window.dispatchEvent(new StorageEvent("storage", { key: STORAGE_KEY }));
+    });
+    expect(steps(SAMPLE)).toEqual(["Base64 + hash tools", "Deploy demos"]);
+    press(button("Undo"));
+    expect(steps(SAMPLE)).toEqual(["Base64 + hash tools", "Mini-apps batch", "Deploy demos"]);
+    expect(host.querySelector('[role="status"]')!.textContent).toBe("Restored step “Mini-apps batch”.");
+    expect($(".as-toast")).toBeNull();
+  });
+
   it("a stored goal id like “constructor” renders and takes a step without reading Object.prototype", () => {
     act(() => root.unmount());
     localStorage.setItem(STORAGE_KEY, JSON.stringify([{ id: "constructor", title: "Proto", archived: false, milestones: [] }]));
@@ -225,6 +252,18 @@ describe("archive, delete and undo", () => {
 });
 
 describe("field edges", () => {
+  it("in forced colors, a ticked step draws its tick with system colors, after the normal rules", async () => {
+    const { readFileSync } = await import("node:fs");
+    const css = readFileSync(`${process.cwd()}/app/app-shell.css`, "utf8");
+    const block = css.indexOf("@media (forced-colors: active)");
+    expect(block).toBeGreaterThan(css.indexOf(".as-check input:checked + span {"));
+    const rules = css.slice(block);
+    expect(rules).toContain("forced-color-adjust: none");
+    expect(rules).toMatch(/\.as-check input:checked \+ span \{[^}]*background: Highlight/);
+    expect(rules).toMatch(/\.as-check input:checked \+ span::after \{[^}]*border: solid HighlightText/);
+    expect(rules).toMatch(/\.as-check span \{[^}]*border-color: CanvasText/);
+  });
+
   it("step and add-step inputs show the 3:1 field edge at rest, not only on hover or focus", async () => {
     const { readFileSync } = await import("node:fs");
     const css = readFileSync(`${process.cwd()}/app/app-shell.css`, "utf8");
