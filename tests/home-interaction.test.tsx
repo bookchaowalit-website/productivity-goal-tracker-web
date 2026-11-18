@@ -158,6 +158,7 @@ describe("undo order and stored ids", () => {
     expect(status).not.toContain("Restored");
     expect(status).toContain("1 step is waiting for a goal");
     expect($(".as-toast")).not.toBeNull();
+    expect($(".as-toast span")!.textContent).toBe("“Mini-apps batch” needs its goal back first. Restore the goal, then press Undo.");
     expect(document.activeElement?.textContent).toBe("Undo");
     // The other tab undoes its delete: the goal is back without the step.
     act(() => {
@@ -169,6 +170,28 @@ describe("undo order and stored ids", () => {
     expect(steps(SAMPLE)).toEqual(["Base64 + hash tools", "Mini-apps batch", "Deploy demos"]);
     expect(host.querySelector('[role="status"]')!.textContent).toBe("Restored step “Mini-apps batch”.");
     expect($(".as-toast")).toBeNull();
+  });
+
+  it("an Undo that can restore nothing leaves storage untouched, so another tab's newer save survives", () => {
+    press($('[aria-label="Remove step Mini-apps batch"]')!, 0);
+    act(() => {
+      localStorage.setItem(STORAGE_KEY, "[]");
+      window.dispatchEvent(new StorageEvent("storage", { key: STORAGE_KEY }));
+    });
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    press(button("Undo"));
+    expect(setItem).not.toHaveBeenCalled();
+    setItem.mockRestore();
+  });
+
+  it("while the toast shows, the page reserves bottom space and scroll padding for it; closing releases it", () => {
+    const space = () => document.documentElement.style.getPropertyValue("--as-toast-space");
+    expect(space()).toBe("");
+    press($('[aria-label="Remove step Mini-apps batch"]')!, 0);
+    expect(space()).toMatch(/^\d+px$/);
+    expect(parseInt(space(), 10)).toBeGreaterThanOrEqual(32);
+    act(() => { $(".as-toast")!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })); });
+    expect(space()).toBe("");
   });
 
   it("a stored goal id like “constructor” renders and takes a step without reading Object.prototype", () => {

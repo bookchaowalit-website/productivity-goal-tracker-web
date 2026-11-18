@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
 import { AppFoot, AppTop, ListButton, Pill, PlusIcon, type Tone } from "@/components/app-shell";
 import {
   STORAGE_KEY, activeGoals, addGoal as addGoalTo, addMilestone, averageProgress, deleteGoal, goalStatus, parseGoals, progress,
@@ -16,12 +16,17 @@ type Removed =
   | { kind: "goal"; goal: Goal; beforeId: string | null; afterId: string | null; index: number }
   | { kind: "step"; goalId: string; step: Milestone; beforeId: string | null; afterId: string | null; index: number };
 /** Every removal still inside the Undo window: one Undo puts them all back where they were. */
-type RemovedBatch = { items: Removed[]; viaKeyboard: boolean };
+type RemovedBatch = { items: Removed[]; viaKeyboard: boolean; waiting?: boolean };
 const removedLabel = (items: Removed[]) => {
   if (items.length > 1) return `Removed ${items.length} items`;
   const [item] = items;
   return item.kind === "goal" ? `Deleted “${item.goal.title}”` : `Removed “${item.step.text}”`;
 };
+
+/** Shown in the toast when Undo had to keep steps back because their goal is gone (deleted in another tab). */
+const waitingLabel = (items: Removed[]) => (items.length === 1 && items[0].kind === "step"
+  ? `“${items[0].step.text}” needs its goal back first. Restore the goal, then press Undo.`
+  : `${items.length} steps need their goal back first. Restore the goal, then press Undo.`);
 
 // randomUUID only exists in secure contexts (HTTPS/localhost) and newer browsers.
 function createId(): string {
@@ -52,6 +57,7 @@ export default function Home() {
   const titleRef = useRef<HTMLInputElement>(null);
   const newRef = useRef<HTMLButtonElement>(null);
   const undoRef = useRef<HTMLButtonElement>(null);
+  const toastRef = useRef<HTMLDivElement>(null);
   const wasComposing = useRef(false);
 
   const active = activeGoals(goals);
@@ -71,6 +77,19 @@ export default function Home() {
     const timer = window.setTimeout(() => { removedRef.current = null; setRemovedState(null); }, 6000);
     return () => window.clearTimeout(timer);
   }, [removed, toastFocused]);
+  // While the toast shows, reserve its height (plus its 24px offset and a gap) at the bottom of the page and in
+  // scroll-padding, so a control focused behind it (Shift+Tab from Undo) scrolls clear instead of staying hidden.
+  const toastShown = removed !== null;
+  useLayoutEffect(() => {
+    const toast = toastRef.current;
+    if (!toastShown || !toast) return;
+    const rootStyle = document.documentElement.style;
+    const reserve = () => rootStyle.setProperty("--as-toast-space", `${toast.offsetHeight + 32}px`);
+    reserve();
+    const observer = typeof ResizeObserver === "function" ? new ResizeObserver(reserve) : null;
+    observer?.observe(toast);
+    return () => { observer?.disconnect(); rootStyle.removeProperty("--as-toast-space"); };
+  }, [toastShown]);
 
   function closeComposer() {
     setComposing(false);
@@ -168,7 +187,7 @@ export default function Home() {
       return;
     }
     // Keep the toast for what could not go back yet, and keep focus on its Undo button.
-    setRemoved({ items: pending, viaKeyboard: true });
+    setRemoved({ items: pending, viaKeyboard: true, waiting: true });
     const waiting = pending.length === 1 ? "1 step is" : `${pending.length} steps are`;
     setAnnouncement(`${done}${waiting} waiting for a goal that is no longer here. Restore the goal, then press Undo again.`);
     undoRef.current?.focus();
@@ -299,14 +318,16 @@ export default function Home() {
       <p className="as-sr" role="status" aria-live="polite">{announcement}</p>
       {removed ? (
         <div
+          ref={toastRef}
           className="as-toast"
+          data-waiting={removed.waiting ? "true" : undefined}
           role="group"
           aria-label="Undo"
           onFocus={() => setToastFocused(true)}
           onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setToastFocused(false); }}
           onKeyDown={(event) => { if (event.key === "Escape") closeToast(); }}
         >
-          <span>{removedLabel(removed.items)}</span>
+          <span>{removed.waiting ? waitingLabel(removed.items) : removedLabel(removed.items)}</span>
           <button ref={undoRef} type="button" className="as-plain" onClick={undo} aria-label={removed.items.length > 1 ? `Undo remove of ${removed.items.length} items` : undefined}>Undo</button>
         </div>
       ) : null}

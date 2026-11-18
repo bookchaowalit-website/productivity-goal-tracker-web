@@ -40,6 +40,19 @@ describe("createLocalStore", () => {
     expect(listener).toHaveBeenCalledTimes(1);
   });
 
+  it("set skips the write and the notify when the value is unchanged", () => {
+    const storage = fakeStorage({ k: "[1]" });
+    const setItem = vi.spyOn(storage, "setItem");
+    const store = createLocalStore("k", parse, serialize, () => storage);
+    const listener = vi.fn();
+    store.subscribe(listener);
+    store.set((prev) => prev);
+    expect(setItem).not.toHaveBeenCalled();
+    expect(listener).not.toHaveBeenCalled();
+    store.set((prev) => [...prev, 2]);
+    expect(storage.data.get("k")).toBe("[1,2]");
+  });
+
   it("keeps working in memory when storage throws", () => {
     const broken = {
       getItem: () => {

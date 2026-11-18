@@ -63,7 +63,11 @@ export function createLocalStore<T>(
     getSnapshot,
     getServerSnapshot: () => empty,
     set(next) {
-      const value = typeof next === "function" ? (next as (prev: T) => T)(getSnapshot()) : next;
+      const prev = getSnapshot();
+      const value = typeof next === "function" ? (next as (prev: T) => T)(prev) : next;
+      // Nothing changed (e.g. an Undo that could restore nothing): don't write, so another tab's newer save is not
+      // overwritten with this tab's copy.
+      if (Object.is(value, prev)) return;
       memory = serialize(value);
       try {
         storage()?.setItem(key, memory);

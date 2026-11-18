@@ -266,12 +266,18 @@
 }
 
 /* The top bar is sticky: keep skip-link targets and keyboard-focused controls clear of it when the page scrolls to them. */
-html { scroll-padding-top: 64px; scroll-padding-bottom: 16px; }
+html { scroll-padding-top: 64px; scroll-padding-bottom: calc(16px + var(--as-toast-space, 0px)); }
+/* While the Undo toast shows, the page reserves its height (set from page.tsx) so nothing focusable stays under it. */
+.as { padding-bottom: var(--as-toast-space, 0px); }
+/* A waiting toast explains what to do next: let it wrap instead of cutting the instructions off. */
+.as-toast[data-waiting="true"] { border-radius: 18px; }
+.as-toast[data-waiting="true"] span { white-space: normal; }
 
 /* Forced colors (Windows High Contrast): the blue fill and white SVG tick are replaced, so a ticked circle would look
    empty. Draw the state with system colors instead: an outlined ring, and a Highlight disc with a HighlightText tick. */
 @media (forced-colors: active) {
   .as-check span { forced-color-adjust: none; border-color: CanvasText; background: Canvas; }
   .as-check input:checked + span { position: relative; border-color: Highlight; background: Highlight; }
+  .as-check:has(input:focus-visible) span { outline-color: CanvasText; }
   .as-check input:checked + span::after { content: ""; position: absolute; left: 50%; top: 45%; width: 6px; height: 11px; border: solid HighlightText; border-width: 0 3px 3px 0; transform: translate(-50%, -50%) rotate(45deg); }
 }
