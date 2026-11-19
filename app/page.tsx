@@ -133,8 +133,14 @@ export default function Home() {
   function archive(goal: Goal) {
     // The button names the state to reach (Archive or Restore): set it, never toggle what another tab may have saved.
     const archived = !goal.archived;
-    setGoals((items) => setArchived(items, goal.id, archived));
-    setAnnouncement(archived ? `Archived “${goal.title}”. It is under Archived.` : `Moved “${goal.title}” back to Active.`);
+    // Announce the move only when the goal is still in the latest data (another tab may have deleted it).
+    let found = false;
+    setGoals((items) => {
+      found = items.some((item) => item.id === goal.id);
+      return setArchived(items, goal.id, archived);
+    });
+    if (!found) setAnnouncement(`“${goal.title}” is no longer here. It was removed in another tab.`);
+    else setAnnouncement(archived ? `Archived “${goal.title}”. It is under Archived.` : `Moved “${goal.title}” back to Active.`);
     // The card leaves this list, so its button goes with it: move focus to New goal, or to the
     // composer when it is open (New goal is hidden then).
     (newRef.current ?? titleRef.current)?.focus();

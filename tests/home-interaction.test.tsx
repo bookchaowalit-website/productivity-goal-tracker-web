@@ -292,6 +292,25 @@ describe("undo order and stored ids", () => {
     expect(host.querySelector('[role="status"]')!.textContent).toBe(`Moved “${SAMPLE}” back to Active.`);
   });
 
+  it("Archive and Restore announce no move for a goal another tab deleted, and write nothing", () => {
+    // Another tab deletes the goal; this tab has not redrawn and still offers Archive.
+    localStorage.setItem(STORAGE_KEY, "[]");
+    press(button("Archive", card(SAMPLE)));
+    expect(localStorage.getItem(STORAGE_KEY)).toBe("[]");
+    expect(host.querySelector('[role="status"]')!.textContent).toBe(`“${SAMPLE}” is no longer here. It was removed in another tab.`);
+  });
+
+  it("Restore announces no move for an archived goal another tab deleted", () => {
+    press(button("Archive", card(SAMPLE)));
+    press(button("Archived", $(".as-side")!));
+    localStorage.setItem(STORAGE_KEY, "[]");
+    press(button("Restore", card(SAMPLE)));
+    expect(localStorage.getItem(STORAGE_KEY)).toBe("[]");
+    const status = host.querySelector('[role="status"]')!.textContent;
+    expect(status).toBe(`“${SAMPLE}” is no longer here. It was removed in another tab.`);
+    expect(status).not.toContain("back to Active");
+  });
+
   it("the not-saved notice can be dismissed, and the kept draft adds once the goal is back", () => {
     type($<HTMLInputElement>(".as-add-step input", card(SAMPLE))!, "First try");
     const before = JSON.stringify([{ id: "mission-01", title: SAMPLE, archived: false, milestones: [] }]);
