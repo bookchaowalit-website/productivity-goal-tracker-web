@@ -16,6 +16,7 @@ type Removed =
   | { kind: "goal"; goal: Goal; beforeId: string | null; afterId: string | null; index: number }
   | { kind: "step"; goalId: string; step: Milestone; beforeId: string | null; afterId: string | null; index: number };
 /** Every removal still inside the Undo window: one Undo puts them all back where they were. */
+const UNDO_SAVE_FAILED = "Could not save the restore: this browser’s storage is full. Nothing was restored; free some space and press Undo again.";
 type RemovedBatch = { items: Removed[]; viaKeyboard: boolean; waiting?: boolean };
 const removedLabel = (items: Removed[]) => {
   if (items.length > 1) return `Removed ${items.length} items`;
@@ -181,10 +182,17 @@ export default function Home() {
     // Add only when the goal is still in the latest data (another tab may have deleted it): otherwise keep the draft,
     // so it is still there if the goal comes back, and say what happened.
     let added = false;
-    setGoals((items) => {
+    // All-or-nothing: a step the browser would not save is not shown, and the draft stays for another try.
+    const saved = setGoals((items) => {
       added = items.some((item) => item.id === goal.id);
       return added ? addMilestone(items, goal.id, text, createId()) : items;
-    });
+    }, { onlyIfSaved: true });
+    if (!saved) {
+      const message = `Could not save “${text.trim()}”: this browser’s storage is full. Your step is kept; free some space and press Add again.`;
+      setNotice(message);
+      setAnnouncement(message);
+      return;
+    }
     if (!added) {
       // Shown on the page too (the card is about to disappear), not only in the screen-reader live region.
       const message = `Could not add “${text.trim()}”: “${goal.title}” is no longer here. Your step is kept.`;
@@ -211,7 +219,6 @@ export default function Home() {
     // goal is gone (deleted in another tab) stays pending, so Undo can still bring it back once the goal returns.
     const restored: Removed[] = [];
     const pending: Removed[] = [];
-    const before = store.getSnapshot();
     const saved = setGoals((items) => {
       restored.length = 0;
       pending.length = 0;
@@ -227,17 +234,17 @@ export default function Home() {
         restored.unshift(entry);
         return restoreMilestone(list, entry.goalId, entry.step, entry.beforeId, entry.afterId, entry.index);
       }, items);
-    });
+    }, { onlyIfSaved: true });
     if (!saved) {
-      // The browser would not save the restore (storage full): put the page back as it was, so a reload cannot
-      // lose what looked restored, and keep the same Undo for another try.
-      store.set(before);
-      const message = "Could not save the restore: this browser’s storage is full. Nothing was restored; free some space and press Undo again.";
-      setNotice(message);
-      setAnnouncement(message);
+      // The browser would not save the restore (storage full). onlyIfSaved left storage and the page as they were
+      // (nothing is written back, so another tab's newer save is safe); keep the same Undo for another try.
+      setNotice(UNDO_SAVE_FAILED);
+      setAnnouncement(UNDO_SAVE_FAILED);
       setRemoved({ items: batch, viaKeyboard: true, waiting: removedRef.current?.waiting });
       return;
     }
+    // A retry that saved clears only the Undo save error, never a notice from another action.
+    setNotice((current) => (current === UNDO_SAVE_FAILED ? "" : current));
     const [only] = restored;
     const done = !restored.length ? "" : restored.length > 1 ? `Restored ${restored.length} items. ` : only.kind === "goal" ? `Restored “${only.goal.title}”. ` : `Restored step “${only.step.text}”. `;
     if (!pending.length) {

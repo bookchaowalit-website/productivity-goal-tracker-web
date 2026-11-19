@@ -10,8 +10,12 @@ export type LocalStore<T> = {
   subscribe: (listener: () => void) => () => void;
   getSnapshot: () => T;
   getServerSnapshot: () => T;
-  /** Returns false only when the browser refused the write (e.g. storage full); the value is still kept in memory. */
-  set: (next: T | ((prev: T) => T)) => boolean;
+  /**
+   * Returns false only when the browser refused the write (e.g. storage full). By default the value is still kept
+   * in memory for this tab; with `{ onlyIfSaved: true }` a refused write changes nothing (storage and the page keep
+   * the latest saved data, so no stale copy is ever written back over another tab's save).
+   */
+  set: (next: T | ((prev: T) => T), options?: { onlyIfSaved?: boolean }) => boolean;
 };
 
 function browserStorage(): StorageLike | undefined {
@@ -63,13 +67,13 @@ export function createLocalStore<T>(
     },
     getSnapshot,
     getServerSnapshot: () => empty,
-    set(next) {
+    set(next, options) {
       const prev = getSnapshot();
       const value = typeof next === "function" ? (next as (prev: T) => T)(prev) : next;
       // Nothing changed (e.g. an Undo that could restore nothing): don't write, so another tab's newer save is not
       // overwritten with this tab's copy.
       if (Object.is(value, prev)) return true;
-      memory = serialize(value);
+      const serialized = serialize(value);
       let saved = true;
       let target: StorageLike | undefined;
       try {
@@ -78,11 +82,14 @@ export function createLocalStore<T>(
         // Storage is blocked outright (no access at all): this tab runs from memory, which counts as saved.
       }
       try {
-        target?.setItem(key, memory);
+        target?.setItem(key, serialized);
       } catch {
-        // Storage is reachable but refused the write (full): keep the value in memory and tell the caller.
+        // Storage is reachable but refused the write (full): tell the caller; keep the value in memory unless the
+        // caller asked for all-or-nothing.
         saved = false;
       }
+      if (!saved && options?.onlyIfSaved) return false;
+      memory = serialized;
       cache = { raw: readRaw(), value };
       notify();
       return saved;

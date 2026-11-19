@@ -82,3 +82,18 @@ describe("set reports whether the browser saved the value", () => {
     expect(blocked.set([3])).toBe(true);
   });
 });
+
+describe("set with onlyIfSaved", () => {
+  it("a refused write changes neither storage nor the snapshot", () => {
+    const storage = fakeStorage({ k: "[1]" });
+    const store = createLocalStore("k", parse, serialize, () => storage);
+    store.getSnapshot();
+    const listener = vi.fn();
+    store.subscribe(listener);
+    storage.setItem = () => { throw new DOMException("full", "QuotaExceededError"); };
+    expect(store.set([1, 2], { onlyIfSaved: true })).toBe(false);
+    expect(store.getSnapshot()).toEqual([1]);
+    expect(storage.data.get("k")).toBe("[1]");
+    expect(listener).not.toHaveBeenCalled();
+  });
+});

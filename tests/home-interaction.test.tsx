@@ -490,35 +490,68 @@ describe("Codex round 2026-11-19", () => {
   });
 });
 
+/** Make window.localStorage refuse writes that `refuse` matches (storage full); returns every attempted value. */
+function refuseWrites(refuse: (value: string) => boolean) {
+  const real = window.localStorage;
+  const original = real.setItem.bind(real);
+  const calls: string[] = [];
+  const spy = vi.spyOn(window, "localStorage", "get").mockReturnValue(new Proxy(real, {
+    get(target, prop) {
+      if (prop === "setItem") return (key: string, value: string) => {
+        calls.push(value);
+        if (key === STORAGE_KEY && refuse(value)) throw new DOMException("full", "QuotaExceededError");
+        return original(key, value);
+      };
+      const v = Reflect.get(target, prop, target);
+      return typeof v === "function" ? v.bind(target) : v;
+    },
+  }));
+  return { calls, restore: () => spy.mockRestore() };
+}
+
 describe("Codex round 3 (2026-11-19)", () => {
-  it("when the browser refuses to save the restore, nothing looks restored and the same Undo stays for another try", () => {
+  it("when the browser refuses to save the restore, nothing is written back, and a later Undo works and clears the error", () => {
     press($(`[aria-label="Delete ${SAMPLE}"]`)!, 0);
     expect(goalTitles()).toEqual([]);
-    // The browser refuses the write that would bring the goal back (storage full); other writes go through.
-    const original = window.localStorage.setItem.bind(window.localStorage);
-    const calls: string[] = [];
-    const setItem = vi.spyOn(window, "localStorage", "get").mockReturnValue(new Proxy(window.localStorage, {
-      get(target, prop) {
-        if (prop === "setItem") return (key: string, value: string) => {
-          calls.push(value);
-          if (key === STORAGE_KEY && value.includes(SAMPLE)) throw new DOMException("full", "QuotaExceededError");
-          return original(key, value);
-        };
-        const v = Reflect.get(target, prop, target);
-        return typeof v === "function" ? v.bind(target) : v;
-      },
-    }));
+    const full = refuseWrites((value) => value.includes(SAMPLE));
     press(button("Undo"));
-    expect(calls.some((value) => value.includes(SAMPLE))).toBe(true);
+    // Only the refused restore was attempted: no snapshot written back over storage.
+    expect(full.calls).toHaveLength(1);
+    expect(localStorage.getItem(STORAGE_KEY)).toBe("[]");
     expect(goalTitles()).toEqual([]);
     expect(host.textContent).toContain("Could not save the restore");
     expect($(".as-toast")).not.toBeNull();
     expect(document.activeElement?.textContent).toBe("Undo");
-    setItem.mockRestore();
+    full.restore();
     press(button("Undo"));
     expect(goalTitles()).toEqual([SAMPLE]);
     expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!)[0].title).toBe(SAMPLE);
     expect($(".as-toast")).toBeNull();
+    expect(host.textContent).not.toContain("Could not save the restore");
+  });
+
+  it("a refused Undo save leaves another tab's newer save in storage", () => {
+    press($(`[aria-label="Delete ${SAMPLE}"]`)!, 0);
+    const otherTab = JSON.stringify([{ id: "t2", title: "From the other tab", archived: false, milestones: [] }]);
+    localStorage.setItem(STORAGE_KEY, otherTab);
+    const full = refuseWrites(() => true);
+    press(button("Undo"));
+    full.restore();
+    expect(localStorage.getItem(STORAGE_KEY)).toBe(otherTab);
+  });
+
+  it("a step the browser refuses to save is not shown, the draft stays, and the page says so", () => {
+    const input = $<HTMLInputElement>(".as-add-step input", card(SAMPLE))!;
+    type(input, "Write the README");
+    const full = refuseWrites(() => true);
+    submit($<HTMLFormElement>(".as-add-step", card(SAMPLE))!);
+    full.restore();
+    expect(steps(SAMPLE)).toHaveLength(3);
+    expect(input.value).toBe("Write the README");
+    expect(host.textContent).toContain("Could not save “Write the README”");
+    submit($<HTMLFormElement>(".as-add-step", card(SAMPLE))!);
+    expect(steps(SAMPLE)).toContain("Write the README");
+    expect(input.value).toBe("");
   });
 
   it("forced colors draw the progress track in Canvas with a CanvasText edge and the done part in Highlight", async () => {
