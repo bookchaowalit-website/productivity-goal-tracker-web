@@ -471,3 +471,21 @@ describe("2026-11-19 review fixes", () => {
     expect(add().disabled).toBe(false);
   });
 });
+
+describe("Codex round 2026-11-19", () => {
+  it("goal head: the title shrinks and the pills never do, so a long name wraps instead of running under them", async () => {
+    const { readFileSync } = await import("node:fs");
+    const css = readFileSync(`${process.cwd()}/app/app-shell.css`, "utf8");
+    const rule = (selector: string) => css.slice(css.indexOf(selector), css.indexOf("}", css.indexOf(selector)));
+    expect(rule(".as-goal-head {")).toContain("flex-wrap: wrap");
+    expect(rule(".as-goal-head > div:first-child {")).toContain("min-width: 0");
+    expect(rule(".as-goal-pills {")).toContain("flex: none");
+    expect(css).not.toContain(".as-goal-head > div {");
+  });
+
+  it("notice Dismiss uses the foreground colour (4.5:1 on the amber tint in both themes)", async () => {
+    const { readFileSync } = await import("node:fs");
+    const css = readFileSync(`${process.cwd()}/app/app-shell.css`, "utf8");
+    expect(css.slice(css.indexOf(".as-notice .as-plain {"), css.indexOf("}", css.indexOf(".as-notice .as-plain {")))).toContain("color: var(--as-fg)");
+  });
+});
