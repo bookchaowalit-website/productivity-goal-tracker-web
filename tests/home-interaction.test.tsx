@@ -94,7 +94,7 @@ describe("steps", () => {
 
   it("adds a step from the Add a step row, renames a step, and a blank name becomes “Untitled step”", () => {
     const input = $<HTMLInputElement>(".as-add-step input", card(SAMPLE))!;
-    expect(button("Add", $(".as-add-step", card(SAMPLE))!)).toBeUndefined();
+    expect(button("Add", $(".as-add-step", card(SAMPLE))!).disabled).toBe(true);
     type(input, "Write the README");
     act(() => { button("Add", $(".as-add-step", card(SAMPLE))!).focus(); });
     press(button("Add", $(".as-add-step", card(SAMPLE))!));
@@ -415,13 +415,40 @@ describe("field edges", () => {
     expect(rules).toMatch(/\.as-check span \{[^}]*border-color: CanvasText/);
   });
 
-  it("step and add-step inputs show the 3:1 field edge at rest, not only on hover or focus", async () => {
+  it("step fields keep a 3:1 edge at rest (dashed underline, full edge on hover/focus); the add-step field a full edge", async () => {
     const { readFileSync } = await import("node:fs");
     const css = readFileSync(`${process.cwd()}/app/app-shell.css`, "utf8");
-    for (const selector of [".as-step-input {", ".as-add-step input {"]) {
-      const rule = css.slice(css.indexOf(selector), css.indexOf("}", css.indexOf(selector)));
-      expect(rule).toContain("border: 1px solid var(--as-field-line)");
-      expect(rule).not.toContain("transparent");
-    }
+    const rule = (selector: string) => css.slice(css.indexOf(selector), css.indexOf("}", css.indexOf(selector)));
+    expect(rule(".as-step-input {")).toContain("border-bottom: 1px dashed var(--as-field-line)");
+    expect(rule(".as-step-input:hover, .as-step-input:focus {")).toContain("border: 1px solid var(--as-field-line)");
+    expect(rule(".as-add-step input {")).toContain("border: 1px solid var(--as-field-line)");
+    expect(rule(".as-add-step input {")).not.toContain("transparent");
+  });
+});
+
+describe("2026-11-19 review fixes", () => {
+  it("labels the built-in example goal as Sample, and a new goal without it", () => {
+    expect([...card(SAMPLE).querySelectorAll(".as-pill")].map((p) => p.textContent)).toEqual(["Sample", "In progress"]);
+    press(button("New goal"));
+    type($<HTMLInputElement>(".as-composer input")!, "Learn Thai script");
+    press(button("Add", $(".as-composer")!));
+    expect([...card("Learn Thai script").querySelectorAll(".as-pill")].map((p) => p.textContent)).toEqual(["Not started"]);
+  });
+
+  it("the empty state has its own New goal button that opens the composer", () => {
+    press($(`[aria-label="Delete ${SAMPLE}"]`)!, 1);
+    const action = $<HTMLButtonElement>(".as-empty .as-button")!;
+    expect(action.textContent).toBe("New goal");
+    press(action);
+    expect($(".as-composer")).not.toBeNull();
+    expect(document.activeElement).toBe($(".as-composer input"));
+    expect($(".as-empty .as-button")).toBeNull();
+  });
+
+  it("the Add a step button is always there and enables once the field has text", () => {
+    const add = () => button("Add", $(".as-add-step", card(SAMPLE))!);
+    expect(add().disabled).toBe(true);
+    type($<HTMLInputElement>(".as-add-step input", card(SAMPLE))!, "Ship it");
+    expect(add().disabled).toBe(false);
   });
 });

@@ -56,6 +56,9 @@ export function parseGoals(raw: string | null): Goal[] {
   return sanitizeGoals(data);
 }
 
+/** Ids of the built-in example goals, labelled "Sample" on the page so they never pass for the user's own. */
+export const SAMPLE_GOAL_IDS: ReadonlySet<string> = new Set(INITIAL_GOALS.map((goal) => goal.id));
+
 export function serializeGoals(goals: Goal[]): string {
   return JSON.stringify(goals);
 }

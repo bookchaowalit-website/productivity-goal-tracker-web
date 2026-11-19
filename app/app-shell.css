@@ -248,8 +248,10 @@
 .as-steps { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--as-line); }
 .as-steps .as-row { padding: 4px 4px 4px 4px; gap: 4px; }
 .as-row-check.as-row { grid-template-columns: 44px minmax(0, 1fr) 44px; }
-/* Editable fields show a 3:1 edge at rest (touch screens have no hover), like every other input. */
-.as-step-input { width: 100%; min-height: 44px; padding: 0 8px; border: 1px solid var(--as-field-line); border-radius: 8px; background: var(--as-surface); font-size: 16px; text-overflow: ellipsis; }
+/* Steps read as a checklist: at rest only a dashed 3:1 underline marks the text as editable (touch screens have no
+   hover); the full field edge appears on hover and focus. */
+.as-step-input { width: 100%; min-height: 44px; padding: 0 8px; border: 1px solid transparent; border-bottom: 1px dashed var(--as-field-line); border-radius: 0; background: transparent; font-size: 16px; text-overflow: ellipsis; }
+.as-step-input:hover, .as-step-input:focus { border: 1px solid var(--as-field-line); border-radius: 8px; background: var(--as-surface); }
 .as-step-input:focus-visible { outline: 3px solid var(--as-focus); outline-offset: 0; }
 .as-row[data-done="true"] .as-step-input { color: var(--as-muted); text-decoration: line-through; }
 .as-plain.as-icon { width: 44px; padding: 0; color: var(--as-muted); }
@@ -289,3 +291,12 @@ html { scroll-padding-top: 64px; scroll-padding-bottom: calc(16px + var(--as-toa
   .as-check:has(input:focus-visible) span { outline-color: CanvasText; }
   .as-check input:checked + span::after { content: ""; position: absolute; left: 50%; top: 45%; width: 6px; height: 11px; border: solid HighlightText; border-width: 0 3px 3px 0; transform: translate(-50%, -50%) rotate(45deg); }
 }
+
+/* 2026-11-19 review: sample label, empty-state action, disabled Add, visible progress track. */
+.as-goal-pills { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.as-empty-action { margin-top: 16px; }
+.as-plain:disabled { color: var(--as-muted); cursor: not-allowed; }
+.as-plain:disabled:hover { background: transparent; }
+/* The track's own fill (#e8e8ed) is ~1.2:1 on white; a 3:1 edge shows the bar even at 0%. */
+.as-goal .as-progress { height: 10px; border: 1px solid var(--as-field-line); }
+@media (forced-colors: active) { .as-goal .as-progress { border-color: CanvasText; } }

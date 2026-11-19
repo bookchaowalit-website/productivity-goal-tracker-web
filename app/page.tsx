@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "re
 import { AppFoot, AppTop, ListButton, Pill, PlusIcon, type Tone } from "@/components/app-shell";
 import {
   STORAGE_KEY, activeGoals, addGoal as addGoalTo, addMilestone, averageProgress, deleteGoal, goalStatus, parseGoals, progress,
-  removeMilestone, renameMilestone, restoreGoal, restoreMilestone, serializeGoals, setArchived, stepSummary, toggleMilestone,
+  removeMilestone, renameMilestone, restoreGoal, restoreMilestone, SAMPLE_GOAL_IDS, serializeGoals, setArchived, stepSummary, toggleMilestone,
   type Goal, type GoalStatus, type Milestone,
 } from "@/lib/goals";
 import { createLocalStore, useLocalStore } from "@/lib/local-store";
@@ -305,7 +305,10 @@ export default function Home() {
                         <h2 id={`goal-${goal.id}`}>{goal.title}</h2>
                         <p>{stepSummary(goal)}</p>
                       </div>
-                      <Pill tone={TONE[status]}>{status}</Pill>
+                      <div className="as-goal-pills">
+                        {SAMPLE_GOAL_IDS.has(goal.id) ? <Pill tone="grey">Sample</Pill> : null}
+                        <Pill tone={TONE[status]}>{status}</Pill>
+                      </div>
                     </div>
                     <div className="as-progress" role="progressbar" aria-label={`${goal.title} progress`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} data-done={status === "Done" ? "true" : undefined}>
                       <span style={{ width: `${pct}%` }} />
@@ -355,7 +358,8 @@ export default function Home() {
                       <span className="as-add-icon" aria-hidden="true"><PlusIcon /></span>
                       <label className="as-sr" htmlFor={`add-${goal.id}`}>Add a step to {goal.title}</label>
                       <input id={`add-${goal.id}`} value={draft} onChange={(event) => setStepDrafts((drafts) => ({ ...drafts, [goal.id]: event.target.value }))} placeholder="Add a step" autoComplete="off" />
-                      {draft.trim() ? <button type="submit" className="as-plain">Add</button> : null}
+                      {/* Always visible (a phone user may not know Enter adds), disabled until there is text. */}
+                      <button type="submit" className="as-plain" disabled={!draft.trim()}>Add</button>
                     </form>
                     <div className="as-goal-foot">
                       <button type="button" className="as-plain" aria-label={`${goal.archived ? "Restore" : "Archive"} ${goal.title}`} onClick={() => archive(goal)}>{goal.archived ? "Restore" : "Archive"}</button>
@@ -368,10 +372,13 @@ export default function Home() {
           ) : (
             <div className="as-list as-empty">
               {goals.length === 0
-                ? <><strong>No goals yet</strong>Press New goal and name the first step.</>
+                ? <><strong>No goals yet</strong>Name a goal and its first step.</>
                 : view === "Active"
-                  ? <><strong>Nothing active</strong>Every goal is archived. Press New goal to start another.</>
+                  ? <><strong>Nothing active</strong>Every goal is archived. Start another one.</>
                   : <><strong>Nothing archived</strong>Archive a goal when you are done with it.</>}
+              {(view === "Active" || goals.length === 0) && !composing
+                ? <div className="as-empty-action"><button type="button" className="as-button" onClick={() => setComposing(true)}><PlusIcon />New goal</button></div>
+                : null}
             </div>
           )}
 
