@@ -489,3 +489,43 @@ describe("Codex round 2026-11-19", () => {
     expect(css.slice(css.indexOf(".as-notice .as-plain {"), css.indexOf("}", css.indexOf(".as-notice .as-plain {")))).toContain("color: var(--as-fg)");
   });
 });
+
+describe("Codex round 3 (2026-11-19)", () => {
+  it("when the browser refuses to save the restore, nothing looks restored and the same Undo stays for another try", () => {
+    press($(`[aria-label="Delete ${SAMPLE}"]`)!, 0);
+    expect(goalTitles()).toEqual([]);
+    // The browser refuses the write that would bring the goal back (storage full); other writes go through.
+    const original = window.localStorage.setItem.bind(window.localStorage);
+    const calls: string[] = [];
+    const setItem = vi.spyOn(window, "localStorage", "get").mockReturnValue(new Proxy(window.localStorage, {
+      get(target, prop) {
+        if (prop === "setItem") return (key: string, value: string) => {
+          calls.push(value);
+          if (key === STORAGE_KEY && value.includes(SAMPLE)) throw new DOMException("full", "QuotaExceededError");
+          return original(key, value);
+        };
+        const v = Reflect.get(target, prop, target);
+        return typeof v === "function" ? v.bind(target) : v;
+      },
+    }));
+    press(button("Undo"));
+    expect(calls.some((value) => value.includes(SAMPLE))).toBe(true);
+    expect(goalTitles()).toEqual([]);
+    expect(host.textContent).toContain("Could not save the restore");
+    expect($(".as-toast")).not.toBeNull();
+    expect(document.activeElement?.textContent).toBe("Undo");
+    setItem.mockRestore();
+    press(button("Undo"));
+    expect(goalTitles()).toEqual([SAMPLE]);
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!)[0].title).toBe(SAMPLE);
+    expect($(".as-toast")).toBeNull();
+  });
+
+  it("forced colors draw the progress track in Canvas with a CanvasText edge and the done part in Highlight", async () => {
+    const { readFileSync } = await import("node:fs");
+    const css = readFileSync(`${process.cwd()}/app/app-shell.css`, "utf8");
+    const block = css.slice(css.lastIndexOf("@media (forced-colors: active) {"));
+    expect(block).toMatch(/\.as-goal \.as-progress \{[^}]*forced-color-adjust: none;[^}]*border-color: CanvasText;[^}]*background: Canvas/);
+    expect(block).toMatch(/\.as-goal \.as-progress span[^{]*\{[^}]*forced-color-adjust: none;[^}]*background: Highlight/);
+  });
+});

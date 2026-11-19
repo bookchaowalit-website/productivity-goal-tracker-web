@@ -302,4 +302,9 @@ html { scroll-padding-top: 64px; scroll-padding-bottom: calc(16px + var(--as-toa
 .as-plain:disabled:hover { background: transparent; }
 /* The track's own fill (#e8e8ed) is ~1.2:1 on white; a 3:1 edge shows the bar even at 0%. */
 .as-goal .as-progress { height: 10px; border: 1px solid var(--as-field-line); }
-@media (forced-colors: active) { .as-goal .as-progress { border-color: CanvasText; } }
+/* Forced colors would paint the track and the fill with the same Canvas colour: keep a CanvasText track edge and draw
+   the done part in Highlight so progress still shows. */
+@media (forced-colors: active) {
+  .as-goal .as-progress { forced-color-adjust: none; border-color: CanvasText; background: Canvas; }
+  .as-goal .as-progress span, .as-progress[data-done="true"] span { forced-color-adjust: none; background: Highlight; }
+}

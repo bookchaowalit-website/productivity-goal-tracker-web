@@ -10,7 +10,8 @@ export type LocalStore<T> = {
   subscribe: (listener: () => void) => () => void;
   getSnapshot: () => T;
   getServerSnapshot: () => T;
-  set: (next: T | ((prev: T) => T)) => void;
+  /** Returns false only when the browser refused the write (e.g. storage full); the value is still kept in memory. */
+  set: (next: T | ((prev: T) => T)) => boolean;
 };
 
 function browserStorage(): StorageLike | undefined {
@@ -67,15 +68,24 @@ export function createLocalStore<T>(
       const value = typeof next === "function" ? (next as (prev: T) => T)(prev) : next;
       // Nothing changed (e.g. an Undo that could restore nothing): don't write, so another tab's newer save is not
       // overwritten with this tab's copy.
-      if (Object.is(value, prev)) return;
+      if (Object.is(value, prev)) return true;
       memory = serialize(value);
+      let saved = true;
+      let target: StorageLike | undefined;
       try {
-        storage()?.setItem(key, memory);
+        target = storage();
       } catch {
-        // Storage is blocked or full: keep the value in memory for this tab.
+        // Storage is blocked outright (no access at all): this tab runs from memory, which counts as saved.
+      }
+      try {
+        target?.setItem(key, memory);
+      } catch {
+        // Storage is reachable but refused the write (full): keep the value in memory and tell the caller.
+        saved = false;
       }
       cache = { raw: readRaw(), value };
       notify();
+      return saved;
     },
   };
 }

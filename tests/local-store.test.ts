@@ -68,3 +68,17 @@ describe("createLocalStore", () => {
     expect(store.getSnapshot()).toEqual([5]);
   });
 });
+
+describe("set reports whether the browser saved the value", () => {
+  it("true when written or unchanged, false when storage refuses the write, true when storage is blocked outright", () => {
+    const storage = fakeStorage();
+    const store = createLocalStore("k", parse, serialize, () => storage);
+    expect(store.set([1])).toBe(true);
+    expect(store.set((prev) => prev)).toBe(true);
+    storage.setItem = () => { throw new DOMException("full", "QuotaExceededError"); };
+    expect(store.set([1, 2])).toBe(false);
+    expect(store.getSnapshot()).toEqual([1, 2]);
+    const blocked = createLocalStore("k", parse, serialize, () => { throw new DOMException("denied", "SecurityError"); });
+    expect(blocked.set([3])).toBe(true);
+  });
+});

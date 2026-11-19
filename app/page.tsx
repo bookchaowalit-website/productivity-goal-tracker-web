@@ -211,7 +211,8 @@ export default function Home() {
     // goal is gone (deleted in another tab) stays pending, so Undo can still bring it back once the goal returns.
     const restored: Removed[] = [];
     const pending: Removed[] = [];
-    setGoals((items) => {
+    const before = store.getSnapshot();
+    const saved = setGoals((items) => {
       restored.length = 0;
       pending.length = 0;
       return batch.reduceRight((list, entry) => {
@@ -227,6 +228,16 @@ export default function Home() {
         return restoreMilestone(list, entry.goalId, entry.step, entry.beforeId, entry.afterId, entry.index);
       }, items);
     });
+    if (!saved) {
+      // The browser would not save the restore (storage full): put the page back as it was, so a reload cannot
+      // lose what looked restored, and keep the same Undo for another try.
+      store.set(before);
+      const message = "Could not save the restore: this browser’s storage is full. Nothing was restored; free some space and press Undo again.";
+      setNotice(message);
+      setAnnouncement(message);
+      setRemoved({ items: batch, viaKeyboard: true, waiting: removedRef.current?.waiting });
+      return;
+    }
     const [only] = restored;
     const done = !restored.length ? "" : restored.length > 1 ? `Restored ${restored.length} items. ` : only.kind === "goal" ? `Restored “${only.goal.title}”. ` : `Restored step “${only.step.text}”. `;
     if (!pending.length) {

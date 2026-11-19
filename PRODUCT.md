@@ -49,6 +49,12 @@ changes nothing is skipped, but each tab only redraws when the browser delivers 
 - **A step that could not be added** (its goal was deleted in another tab) shows a notice on the page until it is
   dismissed or the next step is added; the draft comes back only if the goal does.
 - **Progress rounds** to a whole percent, so 199 of 200 steps can show a full bar while the goal is still In progress.
+- **Undo after adding a goal:** a removed goal comes back at its old index. If it was the only goal and a new goal
+  was added before Undo, the restored goal lands at the top and pushes the new one down, although new goals are
+  normally added on top (Codex review 2026-11-19, P3, accepted).
+- **Storage full during Undo:** if the browser refuses to save the restore, nothing is restored, a notice says so,
+  and the same Undo stays in the toast for another try within its 6 seconds. A browser that refuses every write
+  (storage full, nothing freed) can never complete the Undo.
 - **A step saved with an empty title** by an older version has a Remove button named only "Remove step".
 - **Archive in one tab while the other is open:** the other tab shows the old list until its next redraw. Archive and
   Restore set the state their button names, so a stale tab never flips a goal the wrong way.
